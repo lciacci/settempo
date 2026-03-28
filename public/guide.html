@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SETTEMPO — User Guide</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #131314;
+      --surface-low: #1b1b1c;
+      --surface: #1f1f20;
+      --surface-high: #2a2a2b;
+      --surface-highest: #353436;
+      --border: #514532;
+      --border-subtle: rgba(255,255,255,0.05);
+      --text: #e5e2e3;
+      --muted: #9e8e78;
+      --primary: #ffd79b;
+      --primary-active: #FFB300;
+      --secondary: #9bd2b7;
+      --error: #ffb4ab;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    /* Layout */
+    .layout { display: flex; min-height: 100vh; }
+
+    nav {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--surface-low);
+      border-right: 1px solid var(--border-subtle);
+      padding: 24px 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .nav-logo {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 18px;
+      font-weight: 900;
+      font-style: normal;
+      letter-spacing: -0.04em;
+      color: var(--primary);
+      text-shadow: 0 0 8px rgba(255,215,155,0.3);
+      padding: 0 24px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .nav-sub {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px;
+      letter-spacing: 0.3em;
+      color: var(--muted);
+      text-transform: uppercase;
+      padding: 0 24px 16px;
+      display: block;
+      margin-top: -12px;
+    }
+
+    nav a {
+      display: block;
+      padding: 5px 24px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      transition: color 0.15s;
+    }
+
+    nav a:hover { color: var(--text); }
+
+    nav a.section {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: var(--text);
+      margin-top: 14px;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.25em;
+      padding: 6px 24px 4px;
+    }
+
+    nav a.sub {
+      padding-left: 36px;
+      font-size: 12px;
+    }
+
+    main {
+      flex: 1;
+      max-width: 760px;
+      padding: 48px 40px 80px;
+    }
+
+    /* Header */
+    .guide-header {
+      margin-bottom: 48px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .guide-header .eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.4em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .guide-header h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 40px;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      color: var(--primary-active);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      text-shadow: 0 0 20px rgba(255,179,0,0.2);
+    }
+
+    .guide-header p {
+      color: var(--muted);
+      font-size: 15px;
+      margin-bottom: 0;
+    }
+
+    /* Typography */
+    h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 20px;
+      font-weight: 800;
+      margin-top: 56px;
+      margin-bottom: 16px;
+      padding-top: 20px;
+      padding-bottom: 10px;
+      color: var(--primary);
+      border-top: 1px solid var(--border-subtle);
+      text-transform: uppercase;
+      letter-spacing: -0.01em;
+    }
+
+    h2::before {
+      content: '// ';
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+
+    h3 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      margin-top: 28px;
+      margin-bottom: 8px;
+      color: var(--text);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    p { margin-bottom: 14px; color: var(--text); }
+
+    ul, ol {
+      margin: 10px 0 14px 20px;
+      color: var(--text);
+    }
+
+    li { margin-bottom: 6px; }
+
+    strong { color: var(--primary); font-weight: 600; }
+
+    em { color: var(--muted); font-style: italic; }
+
+    /* Mono inline */
+    code {
+      background: var(--surface-high);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 1px 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--primary);
+      letter-spacing: 0.05em;
+    }
+
+    pre {
+      background: var(--surface-low);
+      border: 1px solid var(--border-subtle);
+      border-left: 3px solid var(--border);
+      border-radius: 2px;
+      padding: 20px;
+      margin: 16px 0;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--muted);
+    }
+
+    /* Callout */
+    .tip {
+      background: rgba(255,179,0,0.04);
+      border-left: 3px solid var(--primary-active);
+      padding: 14px 18px;
+      margin: 20px 0;
+      font-size: 14px;
+      color: var(--muted);
+      border-radius: 0 2px 2px 0;
+    }
+
+    .tip strong { color: var(--primary-active); }
+
+    .note {
+      background: rgba(155,210,183,0.05);
+      border-left: 3px solid var(--secondary);
+      padding: 14px 18px;
+      margin: 20px 0;
+      font-size: 14px;
+      color: var(--muted);
+      border-radius: 0 2px 2px 0;
+    }
+
+    .note strong { color: var(--secondary); }
+
+    /* Step list */
+    ol.steps { list-style: none; margin-left: 0; counter-reset: steps; }
+    ol.steps li {
+      counter-increment: steps;
+      display: flex;
+      gap: 14px;
+      margin-bottom: 12px;
+      align-items: flex-start;
+    }
+    ol.steps li::before {
+      content: counter(steps);
+      background: var(--surface-highest);
+      border: 1px solid var(--border);
+      color: var(--primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 11px;
+      min-width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 2px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background: var(--surface-high);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .badge.amber {
+      background: rgba(255,179,0,0.1);
+      border-color: rgba(255,179,0,0.3);
+      color: var(--primary-active);
+    }
+
+    .badge.red {
+      background: rgba(155,34,38,0.2);
+      border-color: rgba(155,34,38,0.4);
+      color: #fca5a5;
+    }
+
+    .badge.green {
+      background: rgba(155,210,183,0.1);
+      border-color: rgba(155,210,183,0.3);
+      color: var(--secondary);
+    }
+
+    /* Hierarchy diagram */
+    .hierarchy {
+      background: var(--surface-low);
+      border: 1px solid var(--border-subtle);
+      border-left: 3px solid var(--border);
+      border-radius: 2px;
+      padding: 20px 24px;
+      margin: 16px 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 2;
+      color: var(--muted);
+    }
+
+    .hierarchy .hl { color: var(--primary); }
+
+    /* Panel block */
+    .panel {
+      background: var(--surface-low);
+      border: 1px solid var(--border-subtle);
+      border-radius: 2px;
+      padding: 16px 20px;
+      margin: 16px 0;
+    }
+
+    .panel-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    /* Divider */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border-subtle);
+      margin: 32px 0;
+    }
+
+    /* Mobile */
+    @media (max-width: 700px) {
+      nav { display: none; }
+      main { padding: 28px 20px 60px; }
+      .guide-header h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <nav>
+    <span class="nav-logo">SETTEMPO</span>
+    <span class="nav-sub">Analog Precision · User Guide</span>
+    <a class="section" href="#start">Getting Started</a>
+    <a class="sub" href="#artist">Initialize a Module</a>
+    <a class="section" href="#metronome">Metronome</a>
+    <a class="sub" href="#tempo">Setting Tempo</a>
+    <a class="sub" href="#sounds">Sounds &amp; Volume</a>
+    <a class="sub" href="#starter">Song Starter</a>
+    <a class="sub" href="#gap">Gap Click</a>
+    <a class="sub" href="#recent">Recent Sessions</a>
+    <a class="section" href="#library">Song Library</a>
+    <a class="sub" href="#adding">Adding Songs</a>
+    <a class="sub" href="#grid">Grid View</a>
+    <a class="sub" href="#import">Importing</a>
+    <a class="section" href="#sets">Sets &amp; Setlists</a>
+    <a class="sub" href="#create-sets">Create Sets</a>
+    <a class="sub" href="#shows">Shows &amp; Setlists</a>
+    <a class="section" href="#performance">Performance Mode</a>
+    <a class="section" href="#settings">Settings</a>
+    <a class="sub" href="#perf-config">Performance Config</a>
+    <a class="sub" href="#backup">Backup &amp; Restore</a>
+    <a class="section" href="#account">Account &amp; Sync</a>
+    <a class="sub" href="#signin">Signing In</a>
+    <a class="sub" href="#syncing">Syncing</a>
+    <a class="section" href="#install">Installing as App</a>
+    <a class="section" href="#tips">Tips for Live Use</a>
+  </nav>
+
+  <main>
+    <div class="guide-header">
+      <p class="eyebrow">Archive Console V.2.0 · Documentation</p>
+      <h1>User Guide</h1>
+      <p>A metronome and setlist manager for musicians and bands. Works fully offline — sign in optionally to sync your library across devices.</p>
+    </div>
+
+    <!-- GETTING STARTED -->
+    <h2 id="start">Getting Started</h2>
+    <h3 id="artist">Initialize a Module</h3>
+    <p>When you first open the app, go to the <strong>Library</strong> tab. You'll see the <strong>Library Archive</strong> — a rack of artist modules. Tap <strong>Initialize New Module</strong> to add your first artist.</p>
+    <p>Each module card shows the artist name, song count, and set count. From the card you have two options:</p>
+    <ul>
+      <li><strong>Engage Set</strong> — jump straight into performance mode by picking a setlist for that artist</li>
+      <li><strong>Edit</strong> (pencil icon) — open the artist's library to manage songs, sets, and shows</li>
+    </ul>
+
+    <h3>Navigation</h3>
+    <p>The app has three main areas, accessible from the header (desktop) or the bottom bar (mobile):</p>
+    <div class="panel">
+      <div class="panel-label">Navigation Tabs</div>
+      <ul style="margin:0;list-style:none;">
+        <li><strong>TEMPO</strong> — the metronome</li>
+        <li><strong>LIBRARY</strong> — artists, songs, sets, and shows</li>
+        <li><strong>CONFIG</strong> — settings, data backup, and templates</li>
+      </ul>
+    </div>
+    <p>Once inside an artist's library, sub-tabs let you switch between <strong>Songs</strong>, <strong>Sets</strong>, and <strong>Shows</strong>. Tap the back arrow in the header to return to the artist list.</p>
+
+    <!-- METRONOME -->
+    <h2 id="metronome">The Metronome</h2>
+    <p>The <strong>TEMPO</strong> tab is always accessible from anywhere in the app.</p>
+
+    <h3>Starting and Stopping</h3>
+    <p>Tap the large circular button to start and stop the metronome. It glows <span class="badge amber">▶ Amber</span> when stopped and <span class="badge red">■ Red</span> when playing. The beat indicator dots at the top flash in time, with beat one accented brighter.</p>
+
+    <h3 id="tempo">Setting the Tempo</h3>
+    <ul>
+      <li>Use the <strong>−1 / +1</strong> buttons for fine adjustments</li>
+      <li>Use the <strong>−5 / +5</strong> buttons for coarse adjustments</li>
+      <li>Tap <strong>TAP TEMPO</strong> repeatedly in time with your song — the app averages your last 4–8 taps and resets after 3 seconds of no input</li>
+    </ul>
+    <p>On desktop, a <strong>VU needle</strong> shows your tempo position across the full range.</p>
+
+    <h3>Time Signature</h3>
+    <p>Tap any preset (4/4, 3/4, 6/8, 7/8, 5/4, 12/8) to switch instantly. On mobile, only the three most common presets are shown.</p>
+
+    <h3 id="sounds">Click Sounds &amp; Volume</h3>
+    <p>Choose between <strong>Beep</strong>, <strong>Woodblock</strong>, and <strong>Cowbell</strong>. On desktop, use the <strong>Master Vol</strong> fader to adjust loudness and the <strong>Pitch</strong> fader to shift all sounds up or down by semitones.</p>
+    <p>To practice silently, tap the <strong>Audio Online</strong> button at the bottom of the panel to toggle mute — the beat dots still flash so you can follow the tempo visually.</p>
+
+    <h3 id="starter">Song Starter</h3>
+    <p>The Song Starter plays a short count-in click then stops automatically — useful for giving your band the tempo before a song without the click running throughout.</p>
+    <ul>
+      <li>Choose how many bars to count in: <strong>1, 2, 4,</strong> or <strong>8</strong> bars (desktop presets), or use the +/− buttons on mobile</li>
+      <li>Tap the <span class="badge red">▶ Count N Bars</span> button to trigger the count-in</li>
+      <li>The LED dot beside the <code>SONG_STARTER</code> label lights up while counting is active</li>
+      <li>The Song Starter and the regular play button are <strong>independent</strong> — starting the regular metronome does not affect the starter, and vice versa</li>
+      <li>To stop a count-in mid-way, tap the starter button again (it shows <span class="badge amber">■ Stop</span> while counting)</li>
+    </ul>
+    <div class="note"><strong>Note:</strong> What happens after the count-in finishes is controlled in <strong>Config → Performance Config</strong>. You can choose to stop and wait, or automatically advance to the next song in your setlist.</div>
+
+    <h3 id="gap">Gap Click (Practice)</h3>
+    <p>Gap Click alternates between click bars and silent bars — a classic practice technique to test whether you can keep time without the metronome. This feature is available on desktop only.</p>
+    <ul>
+      <li>Toggle it <strong>ON</strong> and set how many bars to click, then how many bars to stay silent</li>
+      <li>The display shows <strong>● CLICK PHASE</strong> or <strong>○ SILENT PHASE</strong> so you always know where you are</li>
+    </ul>
+
+    <h3 id="recent">Recent Sessions</h3>
+    <p>Below the main metronome panel, a <strong>Recent Sessions</strong> rack shows the last 4 songs added to your library. Tap any card to instantly load that song's BPM and time signature into the metronome — useful for quickly revisiting a song you were just working on.</p>
+
+    <!-- SONG LIBRARY -->
+    <h2 id="library">Building Your Song Library</h2>
+    <p>From the Library Archive, tap <strong>Edit</strong> on an artist module to enter the library. Select the <strong>Songs</strong> sub-tab.</p>
+
+    <h3 id="adding">Adding Songs</h3>
+    <p>Tap <strong>+ Add Track</strong> to create a song. Fill in:</p>
+    <ul>
+      <li><strong>Title</strong> — the song name</li>
+      <li><strong>BPM</strong> — the tempo (1–300)</li>
+      <li><strong>Time Sig</strong> — e.g. 4/4, 3/4, 6/8</li>
+      <li><strong>Notes</strong> — anything useful: key, capo position, cues, reminders</li>
+    </ul>
+
+    <h3>Loading a Song to the Metronome</h3>
+    <p>Tap the <span class="badge amber">▶</span> play icon on any song row to instantly load its BPM and time signature into the metronome.</p>
+
+    <h3>Searching and Filtering</h3>
+    <p>Use the search box to find songs by title. Use the BPM min/max fields to filter by tempo range — useful for finding all your slow songs or high-energy ones.</p>
+
+    <h3 id="grid">Grid View</h3>
+    <p>Tap <strong>Grid</strong> to edit your song library as a spreadsheet. Click any cell to edit it, press <kbd>Tab</kbd> to move between columns, and press <kbd>Enter</kbd> to add a new row. Drag the <strong>⠿</strong> handle to reorder. Tap <strong>Save all</strong> when done.</p>
+
+    <h3 id="import">Importing from a Spreadsheet</h3>
+    <p>If you already have your songs in Excel or a CSV file:</p>
+    <ol class="steps">
+      <li>Tap <strong>Import</strong></li>
+      <li>Drop your file or tap to browse</li>
+      <li>The app will try to match your column headers automatically</li>
+      <li>If it doesn't match, use the dropdowns to map which column is Title, BPM, etc.</li>
+      <li>Review the preview — problem rows are highlighted</li>
+      <li>Choose <strong>Add to library</strong> (keeps existing songs) or <strong>Replace library</strong> (starts fresh)</li>
+      <li>Tap Import</li>
+    </ol>
+    <div class="tip"><strong>Tip:</strong> Download the XLSX or CSV template from <strong>Config → Hardware Manifest</strong> to see the expected format before preparing your file.</div>
+
+    <!-- SETS & SETLISTS -->
+    <h2 id="sets">Building Sets and Setlists</h2>
+    <p>SetTempo organises your live material in layers:</p>
+
+    <div class="hierarchy">
+<span class="hl">Artist</span>
+  └── Song Library &nbsp;(all your songs)
+  └── Set Library &nbsp;&nbsp;(reusable ordered groups of songs)
+  └── Shows
+        └── Setlists
+              └── Sets</div>
+
+    <h3 id="create-sets">Step 1 — Create Sets</h3>
+    <p>Go to <strong>Library → Sets</strong> and tap <strong>New Set</strong>. Give it a name (e.g. "Set 1", "Acoustic Set", "Encore").</p>
+    <p>Tap the set row to open the Set Editor, then tap <strong>+ Add Song</strong> to build the song order. Drag the <strong>⠿</strong> handle to reorder. Use the <strong>Shuffle</strong> button to randomise the order, or <strong>Clear</strong> to empty the set.</p>
+    <p><strong>Overriding a song's tempo for a set:</strong> Tap any song row in the Set Editor to open the entry editor. You can set a local BPM, time signature, or notes that apply only in this set. The app will ask whether to apply the change to this entry only or update the song globally. Overridden values are highlighted in amber.</p>
+
+    <h3 id="shows">Step 2 — Create a Show</h3>
+    <p>Go to <strong>Library → Shows</strong> and tap <strong>New Show</strong>. Give it a name (e.g. "The Venue — March 2026") and an optional date.</p>
+
+    <h3>Step 3 — Create a Setlist</h3>
+    <p>Open a show and tap <strong>+ New Setlist</strong>. Give it a name (e.g. "Main Setlist" or "Backup").</p>
+
+    <h3>Step 4 — Add Sets to the Setlist</h3>
+    <p>Open the setlist and tap <strong>+ Add Set</strong>. Pick sets from your Set Library. You can reuse the same set across multiple shows — edit the set once and all shows update automatically.</p>
+    <p>If you need a show to have its own independent version of a set, choose <strong>Add as local copy</strong> instead.</p>
+
+    <!-- PERFORMANCE MODE -->
+    <h2 id="performance">Performance Mode</h2>
+    <p>When you're ready to take the stage, tap <strong>Engage Set</strong> on any artist module card in the Library Archive, or tap the <span class="badge red">▶ Perform</span> button in the header (desktop). Choose which setlist to perform.</p>
+
+    <h3>What You See</h3>
+    <ul>
+      <li>The <strong>current song name</strong> — displayed as <code>01. TITLE</code> in large seven-segment display style</li>
+      <li><strong>BPM</strong> in large amber digits, with the <strong>time signature</strong> below</li>
+      <li>The <strong>next cue</strong> shown in the song info bar</li>
+      <li><strong>Shift −</strong> and <strong>Shift +</strong> buttons to move to the previous or next song</li>
+    </ul>
+
+    <h3>Starting Songs</h3>
+    <ul>
+      <li>Tap <span class="badge amber">▶ START_PRECISION</span> to trigger the song starter count-in for the current song, then stop (or auto-advance, depending on your Config setting)</li>
+      <li>Tap <span class="badge red">■ PANIC STOP</span> to immediately stop the metronome</li>
+      <li>Tap <strong>Arm Next Track</strong> to advance to the next song in the setlist</li>
+    </ul>
+
+    <h3>Auto Mode</h3>
+    <p>Toggle <strong>AUTO</strong> in the top bar to have the metronome start automatically each time you advance to a new song (uses the Auto-Start setting from Config).</p>
+
+    <div class="tip"><strong>Screen stays on:</strong> The screen will not sleep while Performance Mode is active (Wake Lock is enabled). Tap the power icon in the top bar to exit.</div>
+
+    <!-- SETTINGS -->
+    <h2 id="settings">Config (Settings)</h2>
+    <p>Tap the <strong>CONFIG</strong> tab to access settings and data management.</p>
+
+    <h3 id="perf-config">Performance Config</h3>
+    <p>Two toggles control how the metronome behaves during live performance:</p>
+    <ul>
+      <li><strong>Auto-Start Metronome</strong> — when enabled, the metronome starts automatically each time you advance to a new song in Performance Mode</li>
+      <li><strong>Auto-Advance After Intro</strong> — when enabled, the app automatically moves to the next song in the setlist when the Song Starter count-in finishes. When disabled, the click stops and waits for you to advance manually.</li>
+    </ul>
+    <p>A live System Log panel shows a record of setting changes and data operations during your session.</p>
+
+    <h3 id="backup">Backup &amp; Restore</h3>
+    <ul>
+      <li><strong>Export Current Artist</strong> — saves just the selected artist's data as a JSON file</li>
+      <li><strong>Export All Data</strong> — saves everything as a JSON file</li>
+    </ul>
+    <div class="tip"><strong>Important:</strong> Keep your backup file somewhere safe — cloud storage, or email it to yourself. Even if you use the optional sync account, a local JSON backup is a good safety net.</div>
+
+    <h3>Restore</h3>
+    <ul>
+      <li>Set the import mode: <strong>Merge</strong> adds the backup data alongside what's already there; <strong>Replace</strong> wipes everything first</li>
+      <li>Tap <strong>Select JSON File…</strong> and pick your backup</li>
+    </ul>
+
+    <h3>Moving to a New Device</h3>
+    <ol class="steps">
+      <li>Export your data on the old device (Config → Export All Data)</li>
+      <li>Open SetTempo on the new device</li>
+      <li>Go to Config → Import, set mode to Merge, select the file</li>
+    </ol>
+
+    <h3>Spreadsheet Templates</h3>
+    <p>Download an XLSX or CSV template from <strong>Config → Templates</strong> to prepare songs for bulk import via the Library's Import function.</p>
+
+    <!-- ACCOUNT & SYNC -->
+    <h2 id="account">Account &amp; Sync</h2>
+    <p>An account is optional — SetTempo works completely offline without one. Sign in to sync your library across devices using the same email address.</p>
+
+    <h3 id="signin">Signing In</h3>
+    <p>SetTempo uses passwordless sign-in (magic link). No password or account creation required.</p>
+    <ol class="steps">
+      <li>Tap the <strong>sensors</strong> icon in the top-right header</li>
+      <li>Enter your email address and tap <strong>Send Link</strong></li>
+      <li>Check your email for a sign-in link and tap it — you'll be returned to the app automatically</li>
+    </ol>
+    <div class="note"><strong>Note:</strong> The magic link expires after a short time. If it doesn't work, request a new one from the Connect panel.</div>
+
+    <h3 id="syncing">Syncing Your Library</h3>
+    <p>Sync is manual — it runs when you tap <strong>Sync Now</strong> in the account panel. It works both ways:</p>
+    <ul>
+      <li><strong>Push</strong> — any locally added or changed records since your last sync are uploaded to the server</li>
+      <li><strong>Pull</strong> — any records added or changed on another device since your last sync are downloaded into your local library</li>
+    </ul>
+    <p>The panel shows when you last synced. Deleted items (soft-deleted) are also synced, so deletions propagate across devices.</p>
+    <div class="tip"><strong>Conflict resolution:</strong> If the same record was edited on two devices between syncs, the version with the later timestamp wins. To be safe, sync before making changes on a second device.</div>
+
+    <h3>Sync Status Indicator</h3>
+    <p>When signed in, the sensors icon shows a small <span class="badge amber">● amber</span> LED dot. Tap it to open the account panel. The panel shows your email, last sync time, and a spinning icon while a sync is in progress.</p>
+
+    <h3>Signing Out</h3>
+    <p>When signed in, a power icon appears next to the sensors button. Tap it to sign out. Your local data is untouched — signing out only ends the server session on this device.</p>
+
+    <!-- INSTALL -->
+    <h2 id="install">Installing as an App</h2>
+    <p>SetTempo is a Progressive Web App — install it on your device for one-tap access and full offline use, without going through an app store.</p>
+    <ul>
+      <li><strong>iPhone/iPad:</strong> Open in Safari → tap the Share button → <strong>Add to Home Screen</strong></li>
+      <li><strong>Android:</strong> Open in Chrome → tap the menu (⋮) → <strong>Add to Home Screen</strong> or <strong>Install app</strong></li>
+      <li><strong>Mac/PC:</strong> Open in Chrome or Edge → look for the install icon (⊕) in the address bar</li>
+    </ul>
+    <p>Once installed, it works exactly like a native app, even with no internet connection.</p>
+    <div class="note"><strong>iOS note:</strong> If you experience no audio, check that your device's ring/mute switch (on the side of the phone) is turned on. iOS can silence Web Audio when the device is muted.</div>
+
+    <!-- TIPS -->
+    <h2 id="tips">Tips for Live Use</h2>
+    <ul>
+      <li>Build your setlist before the show, not at soundcheck</li>
+      <li>Enable <strong>Auto-Advance After Intro</strong> in Config so the app automatically loads the next song after the count-in — one less thing to think about on stage</li>
+      <li>Add notes to songs for things you always forget: <em>"CAPO 3 — count in quietly — full band on bar 2"</em></li>
+      <li>Use the <strong>Engage Set</strong> button on your artist card to skip directly from the Library Archive to the stage without navigating sub-tabs</li>
+      <li>Export and email yourself a setlist PDF as a backup in case your phone dies</li>
+      <li>The screen stays on automatically in Performance Mode, but plug in if it's a long set</li>
+      <li>The Song Starter and regular play button are independent — you can tap Song Starter while the metronome is running to stop and begin a count-in for the next song</li>
+    </ul>
+
+  </main>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,246 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Color Tokens ── */
+  --color-on-primary-fixed: #281900;
+  --color-secondary-fixed: #b6efd3;
+  --color-on-primary-fixed-variant: #604100;
+  --color-secondary-fixed-dim: #9bd2b7;
+  --color-secondary: #9bd2b7;
+  --color-on-tertiary-container: #a2050f;
+  --color-on-surface-variant: #d6c4ac;
+  --color-primary-container: #ffb300;
+  --color-surface-dim: #131314;
+  --color-tertiary: #ffd3ce;
+  --color-error: #ffb4ab;
+  --color-error-container: #93000a;
+  --color-on-tertiary-fixed: #410002;
+  --color-on-error: #690005;
+  --color-surface-container-high: #2a2a2b;
+  --color-surface-tint: #ffba38;
+  --color-background: #131314;
+  --color-inverse-on-surface: #303031;
+  --color-surface-container-lowest: #0e0e0f;
+  --color-inverse-surface: #e5e2e3;
+  --color-surface-bright: #39393a;
+  --color-on-primary: #432c00;
+  --color-surface-container: #1f1f20;
+  --color-tertiary-fixed: #ffdad6;
+  --color-on-secondary-container: #8ac1a6;
+  --color-on-surface: #e5e2e3;
+  --color-tertiary-container: #ffaca3;
+  --color-on-tertiary-fixed-variant: #93000b;
+  --color-primary: #ffd79b;
+  --color-on-background: #e5e2e3;
+  --color-surface-variant: #353436;
+  --color-secondary-container: #19503b;
+  --color-on-primary-container: #6b4900;
+  --color-primary-fixed: #ffdeac;
+  --color-surface: #131314;
+  --color-primary-fixed-dim: #ffba38;
+  --color-on-tertiary: #690005;
+  --color-on-secondary-fixed-variant: #19503b;
+  --color-surface-container-highest: #353436;
+  --color-on-secondary: #003826;
+  --color-inverse-primary: #7e5700;
+  --color-outline: #9e8e78;
+  --color-on-error-container: #ffdad6;
+  --color-on-secondary-fixed: #002115;
+  --color-tertiary-fixed-dim: #ffb4ab;
+  --color-surface-container-low: #1b1b1c;
+  --color-outline-variant: #514532;
+
+  /* ── Font Families ── */
+  --font-headline: "Space Grotesk", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-label: "Space Grotesk", sans-serif;
+  --font-mono-digital: "JetBrains Mono", monospace;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* ── Border Radius ── */
+  --radius: 0.125rem;
+  --radius-sm: 0.0625rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.75rem;
+}
+
+/* ── Hardware Aesthetic Classes ── */
+.seven-segment {
+  font-family: 'JetBrains Mono', monospace;
+  text-shadow: 0 0 20px rgba(255, 179, 0, 0.4);
+  letter-spacing: -0.05em;
+}
+
+.brushed-metal {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 2px 2px;
+}
+
+.rack-panel {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    inset 0 -1px 0 rgba(0,0,0,0.5),
+    0 10px 30px -10px rgba(0,0,0,0.8);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.rack-module {
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.4),
+    0 1px 0 rgba(255,255,255,0.05);
+  border: 1px solid #0e0e0f;
+}
+
+.screw-head {
+  width: 12px;
+  height: 12px;
+  background: radial-gradient(circle at 30% 30%, #353436, #0e0e0f);
+  border-radius: 50%;
+  box-shadow: inset 0 1px 1px rgba(255,255,255,0.1), 1px 1px 2px rgba(0,0,0,0.5);
+  position: relative;
+  flex-shrink: 0;
+}
+.screw-head::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 1.5px;
+  background: #131314;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.btn-amber-backlit {
+  background-color: #FFB300;
+  box-shadow:
+    inset 0 0 15px rgba(255,255,255,0.5),
+    0 0 30px rgba(255, 179, 0, 0.6);
+  transition: all 0.2s ease;
+}
+
+.btn-red-backlit {
+  background-color: #9B2226;
+  box-shadow:
+    inset 0 0 15px rgba(255,255,255,0.4),
+    0 0 30px rgba(155, 34, 38, 0.5);
+  transition: all 0.2s ease;
+}
+
+.led-active {
+  box-shadow: inset 0 0 2px rgba(255,255,255,0.5), 0 0 15px #FFB300;
+}
+
+/* Smaller screw used in Set Editor panels */
+.v-screw {
+  width: 8px;
+  height: 8px;
+  background: #2a2a2b;
+  border-radius: 50%;
+  box-shadow: inset 0 1px 1px rgba(255,255,255,0.1), 0 1px 2px rgba(0,0,0,0.5);
+  position: relative;
+  flex-shrink: 0;
+}
+.v-screw::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: #131314;
+  transform: rotate(45deg);
+}
+
+/* Digital readout alias */
+.digital-readout {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  letter-spacing: -0.04em;
+}
+
+/* Alias used in PerformanceMode */
+.segment-display {
+  font-family: 'JetBrains Mono', monospace;
+  text-shadow: 0 0 20px rgba(255, 215, 155, 0.4);
+}
+
+.glow-active {
+  box-shadow: 0 0 30px rgba(255, 215, 155, 0.2);
+}
+
+.amber-glow {
+  box-shadow: 0 0 25px rgba(255, 179, 0, 0.45);
+}
+
+.red-glow {
+  box-shadow: 0 0 15px rgba(155, 34, 38, 0.4);
+}
+
+.hardware-fader {
+  appearance: none;
+  background: #0e0e0f;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+  border: 1px solid #353436;
+  width: 100%;
+  cursor: pointer;
+}
+.hardware-fader::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 32px;
+  background: #353436;
+  border: 1px solid #514532;
+  border-radius: 2px;
+  cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.6);
+  background-image: linear-gradient(to right, transparent 45%, #ffd79b 45%, #ffd79b 55%, transparent 55%);
+}
+
+/* Library module aesthetic */
+.crt-glow {
+  box-shadow: inset 0 0 20px rgba(255, 179, 0, 0.15);
+  background: linear-gradient(180deg, rgba(40, 25, 0, 0.3) 0%, rgba(0, 0, 0, 0.4) 100%);
+}
+
+.data-led {
+  box-shadow: 0 0 8px #FFB300, 0 0 2px #FFB300;
+}
+
+.module-card-shadow {
+  box-shadow: inset 0 4px 12px rgba(0,0,0,0.8), 0 1px 1px rgba(255,255,255,0.05);
+}
+
+/* Settings-specific classes */
+.scanline-overlay {
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
+  background-size: 100% 4px;
+  pointer-events: none;
+}
+
+.glow-bulb {
+  box-shadow: 0 0 12px #FFB300, 0 0 4px #FFB300;
+}
+
+.system-log-glow {
+  text-shadow: 0 0 5px rgba(155, 210, 183, 0.3);
+}
+
+/* Material Symbols defaults */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-size: 24px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+  min-height: 100dvh;
+}
