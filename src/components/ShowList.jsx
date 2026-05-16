@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, softDelete, softDeleteWhere } from '../db/db'
+import { db, addRow, softDelete, softDeleteWhere } from '../db/db'
 import { useAppStore } from '../store/useAppStore'
 
 function ShowRow({ show, index, onOpen, onDelete }) {
@@ -54,12 +54,10 @@ export default function ShowList({ artistId }) {
 
   const addShow = async () => {
     if (!form.name.trim()) return
-    const id = await db.shows.add({
+    const id = await addRow('shows', {
       artistId,
       name: form.name.trim(),
       date: form.date || null,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
     })
     setForm({ name: '', date: '' })
     setShowForm(false)

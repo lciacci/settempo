@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, softDelete, softDeleteWhere } from '../db/db'
+import { db, addRow, softDelete, softDeleteWhere } from '../db/db'
 import { useAppStore } from '../store/useAppStore'
 import SongGridView from './SongGridView'
 import SongImport from './SongImport'
@@ -111,7 +111,7 @@ export default function SongLibrary({ artistId, onLoadSong }) {
     if (editingId) {
       await db.songs.update(editingId, data)
     } else {
-      await db.songs.add({ ...data, createdAt: Date.now() })
+      await addRow('songs', data)
     }
     resetForm()
   }

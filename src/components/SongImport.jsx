@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { db } from '../db/db'
+import { db, addRow } from '../db/db'
 
 const APP_FIELDS = ['title', 'bpm', 'timeSig', 'notes']
 const APP_FIELD_LABELS = { title: 'Title', bpm: 'BPM', timeSig: 'Time Sig', notes: 'Notes' }
@@ -109,7 +109,7 @@ export default function SongImport({ artistId, onClose, onDone }) {
             continue
           }
         }
-        await db.songs.add({ ...song, artistId, createdAt: Date.now(), updatedAt: Date.now() })
+        await addRow('songs', { ...song, artistId })
       }
       setImportCount(validRows.length)
       setStep('done')

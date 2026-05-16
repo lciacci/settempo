@@ -7,7 +7,7 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { db, softDelete } from '../db/db'
+import { db, addRow, softDelete } from '../db/db'
 import { exportSetlistPrint, exportSetlistHTML } from './SetlistExport'
 
 function SetPicker({ artistId, onPick, onClose }) {
@@ -142,13 +142,11 @@ export default function SetlistDetail({ setlistId, artistId }) {
 
   const addSet = async (set, isLocalCopy) => {
     const pos = setlistSets?.length ?? 0
-    await db.setlistSets.add({
+    await addRow('setlistSets', {
       setlistId,
       setId: set.id,
       position: pos,
       isLocalCopy: isLocalCopy ?? false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
     })
     setShowPicker(false)
   }

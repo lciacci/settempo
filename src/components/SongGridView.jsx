@@ -6,7 +6,7 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { db, softDelete, softDeleteWhere } from '../db/db'
+import { db, addRow as dbAddRow, softDelete, softDeleteWhere } from '../db/db'
 
 const EMPTY_ROW = { title: '', bpm: '120', timeSigN: '4', timeSigD: '4', notes: '' }
 
@@ -158,7 +158,7 @@ export default function SongGridView({ artistId, songs, onClose }) {
         if (r.id) {
           await db.songs.update(r.id, data)
         } else {
-          await db.songs.add({ ...data, createdAt: Date.now() })
+          await dbAddRow('songs', data)
         }
       }
       onClose()

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, softDelete, softDeleteWhere } from '../db/db'
+import { db, addRow, softDelete, softDeleteWhere } from '../db/db'
 import { useAppStore } from '../store/useAppStore'
 
 function SetRow({ set, index, onOpen, onDelete }) {
@@ -61,7 +61,7 @@ export default function SetLibrary({ artistId }) {
   const addSet = async () => {
     const trimmed = name.trim()
     if (!trimmed) return
-    const id = await db.sets.add({ artistId, name: trimmed, createdAt: Date.now(), updatedAt: Date.now() })
+    const id = await addRow('sets', { artistId, name: trimmed })
     setName('')
     setShowForm(false)
     pushView('set-editor', { setId: id })

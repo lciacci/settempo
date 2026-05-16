@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db/db'
+import { db, addRow } from '../db/db'
 import { useAppStore } from '../store/useAppStore'
 
 function ArtistModule({ artist, index, onSelect, onEngage }) {
@@ -77,7 +77,7 @@ export default function ArtistList({ onSelect, onEngage }) {
   const addArtist = async () => {
     const trimmed = name.trim()
     if (!trimmed) return
-    const id = await db.artists.add({ name: trimmed, createdAt: Date.now(), updatedAt: Date.now() })
+    const id = await addRow('artists', { name: trimmed })
     setName('')
     setShowForm(false)
     setCurrentArtistId(id)

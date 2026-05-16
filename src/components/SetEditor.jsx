@@ -8,7 +8,7 @@ import {
   useSortable, arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { db, softDelete } from '../db/db'
+import { db, addRow, softDelete } from '../db/db'
 import SongPicker from './SongPicker'
 import OverrideModal from './OverrideModal'
 
@@ -266,11 +266,10 @@ export default function SetEditor({ setId, artistId }) {
   }
 
   const addSong = async (song) => {
-    await db.setEntries.add({
+    await addRow('setEntries', {
       setId, songId: song.id, position: entries?.length ?? 0,
       bpmOverride: null, timeSigNOverride: null,
       timeSigDOverride: null, notesOverride: null,
-      createdAt: Date.now(), updatedAt: Date.now(),
     })
     setShowPicker(false)
   }
