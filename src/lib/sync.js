@@ -13,7 +13,7 @@ const saveLastSyncedAt = (userId, ts) =>
 
 // ── Column mappers (camelCase ↔ snake_case) ───────────────────────────────
 
-const mappers = {
+export const mappers = {
   artists: {
     toRemote: (r, userId) => ({
       id: r.id, user_id: userId,
@@ -105,7 +105,7 @@ const mappers = {
   },
 }
 
-const SUPABASE_TABLE = {
+export const SUPABASE_TABLE = {
   artists:     'artists',
   songs:       'songs',
   sets:        'sets',
@@ -115,7 +115,7 @@ const SUPABASE_TABLE = {
   setlistSets: 'setlist_sets',
 }
 
-const TABLE_ORDER = ['artists', 'songs', 'sets', 'setEntries', 'shows', 'setlists', 'setlistSets']
+export const TABLE_ORDER = ['artists', 'songs', 'sets', 'setEntries', 'shows', 'setlists', 'setlistSets']
 
 // ── Push: local → remote ──────────────────────────────────────────────────
 
