@@ -2,14 +2,33 @@ import { db } from '../db/db'
 import { supabase } from './supabase'
 
 // ── Persistence ────────────────────────────────────────────────────────────
+//
+// Two watermarks per user:
+//
+//   lastPushedAt   local clock ms — captures "when did we last attempt to
+//                  push." Local push filter selects rows whose locally-set
+//                  updatedAt is newer than this. Local clock is fine for
+//                  the local-changed-since check.
+//
+//   lastSyncedAt   server clock ms — max updated_at we've ever seen come
+//                  back from Supabase. Pull filter uses this so cross-device
+//                  clock skew can't make us miss or duplicate rows.
+//
+// The previous single-watermark design mixed both, so a phone with a clock
+// ahead of the laptop could persistently skip rows the laptop wrote.
 
-const storageKey = (userId) => `settempo_lastSyncedAt_${userId}`
+const pushedKey  = (userId) => `settempo_lastPushedAt_${userId}`
+const syncedKey  = (userId) => `settempo_lastSyncedAt_${userId}`
 
+export const getLastPushedAt = (userId) =>
+  Number(localStorage.getItem(pushedKey(userId))) || 0
 export const getLastSyncedAt = (userId) =>
-  Number(localStorage.getItem(storageKey(userId))) || 0
+  Number(localStorage.getItem(syncedKey(userId))) || 0
 
+const saveLastPushedAt = (userId, ts) =>
+  localStorage.setItem(pushedKey(userId), String(ts))
 const saveLastSyncedAt = (userId, ts) =>
-  localStorage.setItem(storageKey(userId), String(ts))
+  localStorage.setItem(syncedKey(userId), String(ts))
 
 // ── Column mappers (camelCase ↔ snake_case) ───────────────────────────────
 
@@ -117,24 +136,48 @@ export const SUPABASE_TABLE = {
 
 export const TABLE_ORDER = ['artists', 'songs', 'sets', 'setEntries', 'shows', 'setlists', 'setlistSets']
 
+// Server-stamped updated_at: we strip the client's value from the push
+// payload, and a Postgres trigger fills it from clock_timestamp(). The
+// upsert .select() returns the server's authoritative timestamp, which we
+// write back into Dexie so the next push filter is consistent with what
+// the server has on record.
+const stripUpdatedAt = (row) => {
+  const { updated_at, ...rest } = row // eslint-disable-line no-unused-vars
+  return rest
+}
+
 // ── Push: local → remote ──────────────────────────────────────────────────
 
-async function push(userId, lastSyncedAt) {
+async function push(userId, lastPushedAt) {
   for (const table of TABLE_ORDER) {
-    const records = await db[table].filter((r) => r.updatedAt > lastSyncedAt).toArray()
+    const records = await db[table].filter((r) => r.updatedAt > lastPushedAt).toArray()
     if (!records.length) continue
 
-    const rows = records.map((r) => mappers[table].toRemote(r, userId))
-    const { error } = await supabase
+    const rows = records.map((r) => stripUpdatedAt(mappers[table].toRemote(r, userId)))
+    const { data, error } = await supabase
       .from(SUPABASE_TABLE[table])
       .upsert(rows, { onConflict: 'user_id,id' })
+      .select()
     if (error) throw new Error(`Push ${table}: ${error.message}`)
+
+    // Reconcile local updatedAt to the server's authoritative timestamp so
+    // future push filters don't re-send rows the server has already
+    // accepted (clock skew would otherwise cause repeat work).
+    if (data?.length) {
+      await db.transaction('rw', db[table], async () => {
+        for (const row of data) {
+          const remote = mappers[table].fromRemote(row)
+          await db[table].update(remote.id, { updatedAt: remote.updatedAt })
+        }
+      })
+    }
   }
 }
 
 // ── Pull: remote → local ──────────────────────────────────────────────────
 
 async function pull(userId, lastSyncedAt) {
+  let maxServerTs = lastSyncedAt
   for (const table of TABLE_ORDER) {
     const { data, error } = await supabase
       .from(SUPABASE_TABLE[table])
@@ -147,26 +190,39 @@ async function pull(userId, lastSyncedAt) {
     await db.transaction('rw', db[table], async () => {
       for (const row of data) {
         const remote = mappers[table].fromRemote(row)
+        if (remote.updatedAt > maxServerTs) maxServerTs = remote.updatedAt
+
+        if (remote.deletedAt != null) {
+          // Remote says this row is deleted — hard-delete locally so the
+          // UI sees it gone immediately and we don't keep tombstones
+          // around forever.
+          await db[table].delete(remote.id)
+          continue
+        }
+
         const local = await db[table].get(remote.id)
-        if (!local || remote.updatedAt > local.updatedAt) {
+        if (!local || remote.updatedAt > (local.updatedAt ?? 0)) {
           await db[table].put(remote)
         }
       }
     })
   }
+  return maxServerTs
 }
 
 // ── Public entry point ────────────────────────────────────────────────────
 
 export async function runSync(userId) {
-  // Capture start time before sync so any modifications during the window
-  // are picked up on the next sync rather than silently dropped.
-  const syncStartedAt = Date.now()
+  // Snapshot before push so any local writes during the push window are
+  // picked up on the next sync rather than silently dropped.
+  const pushStartedAt = Date.now()
+  const lastPushedAt = getLastPushedAt(userId)
   const lastSyncedAt = getLastSyncedAt(userId)
 
-  await push(userId, lastSyncedAt)
-  await pull(userId, lastSyncedAt)
+  await push(userId, lastPushedAt)
+  const maxServerTs = await pull(userId, lastSyncedAt)
 
-  saveLastSyncedAt(userId, syncStartedAt)
-  return syncStartedAt
+  saveLastPushedAt(userId, pushStartedAt)
+  if (maxServerTs > lastSyncedAt) saveLastSyncedAt(userId, maxServerTs)
+  return pushStartedAt
 }

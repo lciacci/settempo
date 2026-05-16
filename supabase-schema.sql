@@ -7,6 +7,16 @@
 -- so collisions across devices for the same user can't happen the way
 -- they did with Dexie's per-device auto-increment.
 
+-- ── Server timestamp trigger ──────────────────────────────────────────────
+-- The client strips updated_at from upsert payloads so this trigger is
+-- authoritative. Stored as bigint ms to match the camelCase Dexie format.
+create or replace function settempo_set_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at := (extract(epoch from clock_timestamp()) * 1000)::bigint;
+  return new;
+end $$;
+
 -- ── Artists ──────────────────────────────────────────────────────────────────
 create table if not exists artists (
   id          text not null,
@@ -23,6 +33,9 @@ create policy "Users own their artists"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 create index if not exists artists_user_updated_idx on artists(user_id, updated_at);
+drop trigger if exists artists_set_updated_at on artists;
+create trigger artists_set_updated_at before insert or update on artists
+  for each row execute function settempo_set_updated_at();
 
 -- ── Songs ─────────────────────────────────────────────────────────────────────
 create table if not exists songs (
@@ -45,6 +58,9 @@ create policy "Users own their songs"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 create index if not exists songs_user_updated_idx on songs(user_id, updated_at);
+drop trigger if exists songs_set_updated_at on songs;
+create trigger songs_set_updated_at before insert or update on songs
+  for each row execute function settempo_set_updated_at();
 
 -- ── Sets ─────────────────────────────────────────────────────────────────────
 create table if not exists sets (
@@ -63,6 +79,9 @@ create policy "Users own their sets"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 create index if not exists sets_user_updated_idx on sets(user_id, updated_at);
+drop trigger if exists sets_set_updated_at on sets;
+create trigger sets_set_updated_at before insert or update on sets
+  for each row execute function settempo_set_updated_at();
 
 -- ── Set Entries ───────────────────────────────────────────────────────────────
 create table if not exists set_entries (
@@ -86,6 +105,9 @@ create policy "Users own their set entries"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 create index if not exists set_entries_user_updated_idx on set_entries(user_id, updated_at);
+drop trigger if exists set_entries_set_updated_at on set_entries;
+create trigger set_entries_set_updated_at before insert or update on set_entries
+  for each row execute function settempo_set_updated_at();
 
 -- ── Shows ─────────────────────────────────────────────────────────────────────
 create table if not exists shows (
@@ -105,6 +127,9 @@ create policy "Users own their shows"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 create index if not exists shows_user_updated_idx on shows(user_id, updated_at);
+drop trigger if exists shows_set_updated_at on shows;
+create trigger shows_set_updated_at before insert or update on shows
+  for each row execute function settempo_set_updated_at();
 
 -- ── Setlists ──────────────────────────────────────────────────────────────────
 create table if not exists setlists (
@@ -123,6 +148,9 @@ create policy "Users own their setlists"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 create index if not exists setlists_user_updated_idx on setlists(user_id, updated_at);
+drop trigger if exists setlists_set_updated_at on setlists;
+create trigger setlists_set_updated_at before insert or update on setlists
+  for each row execute function settempo_set_updated_at();
 
 -- ── Setlist Sets ──────────────────────────────────────────────────────────────
 create table if not exists setlist_sets (
@@ -143,3 +171,6 @@ create policy "Users own their setlist sets"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 create index if not exists setlist_sets_user_updated_idx on setlist_sets(user_id, updated_at);
+drop trigger if exists setlist_sets_set_updated_at on setlist_sets;
+create trigger setlist_sets_set_updated_at before insert or update on setlist_sets
+  for each row execute function settempo_set_updated_at();
