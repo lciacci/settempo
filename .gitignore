@@ -15,6 +15,9 @@ dist-ssr
 .env.*
 !.env.example
 
+# Temporary Claude session handoff notes
+CLAUDE-FOLLOWUP.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
