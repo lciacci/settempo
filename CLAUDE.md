@@ -70,7 +70,7 @@ setlistSets id, setlistId, setId, position, isLocalCopy, updatedAt
 - **Conflict resolution**: last-write-wins by `updatedAt`
 - **Supabase schema**: composite PK `(user_id, id)` to avoid ID collisions (Dexie auto-increment starts at 1 per user)
 - **Column mapping**: camelCase (Dexie) ↔ snake_case (Supabase) via mappers in `sync.js`
-- Sync is **manual** — triggered by "Sync Now" button in AuthModal
+- Sync is **automatic** — `useSyncEngine` syncs on sign-in, tab focus, reconnect, and a 60s interval; "Sync Now" in AuthModal forces an immediate pass
 
 ## Auth
 - Magic link (passwordless) via Supabase `signInWithOtp`
@@ -97,7 +97,7 @@ Self-hosted via SFTP. Build with `npm run build`, upload `dist/` contents to web
 ## Supabase Setup
 Schema in `supabase-schema.sql`. Composite PKs (`user_id, id`). RLS enabled on all tables. Redirect URLs must be set in Supabase Auth → URL Configuration (one per line).
 
-## Current State (as of late March 2026)
+## Current State (as of July 2026)
 - [x] Metronome (tap tempo, gap click, song starter, sounds, pitch)
 - [x] Song library (add, edit, grid view, import CSV/XLSX, load to metronome)
 - [x] Sets, shows, setlists with drag-to-reorder
@@ -107,9 +107,9 @@ Schema in `supabase-schema.sql`. Composite PKs (`user_id, id`). RLS enabled on a
 - [x] Magic link auth UI
 - [x] Delta sync engine (push/pull, last-write-wins)
 - [x] User guide at `/guide.html`
+- [x] Auto-sync (sign-in, tab focus, reconnect, 60s interval)
+- [x] Vitest suites for Dexie helpers, sync push/pull, column mappers
 
 ## Roadmap / Next
-- Auto-sync on sign-in or on app focus (currently manual only)
 - Supabase Redirect URL must be configured per environment before auth works
 - Audio feedback review (users have flagged audio issues — investigate Web Audio timing)
-- Consider adding Vitest for critical sync and data logic (assessed as medium effort, high value)

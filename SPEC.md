@@ -255,7 +255,7 @@ The orange **▶ Perform** button in the header opens `SetlistPicker`, then laun
 
 **To start a new session with Claude Code:**
 
-1. Open terminal, `cd /Users/lorenzociacci/claude/projects/SetTempo`
+1. Open terminal, `cd` into the repo checkout
 2. Run `npm run dev`
 3. Open a new Claude Code session in this directory
 4. Paste this file into Claude and describe what you want to change or add
