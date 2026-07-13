@@ -2,12 +2,16 @@
 
 A React PWA metronome and setlist manager built with an **Analog Precision** hardware rack aesthetic.
 
+- Live app: https://houseofyeti.com/settempo/
+- User guide: https://houseofyeti.com/settempo/guide.html
+
 ## Stack
 
 - **React 19** + **Vite 7**
 - **Tailwind CSS v4** (`@tailwindcss/vite`) — custom design tokens via `@theme` in `src/index.css`
 - **Zustand** — app state (`useAppStore`)
-- **Dexie.js** + **dexie-react-hooks** — IndexedDB for artists, songs, sets, setlists, shows
+- **Dexie.js** + **dexie-react-hooks** — IndexedDB for artists, songs, sets, setlists, shows; UUID primary keys
+- **Supabase** — magic-link auth and Postgres backend for optional cross-device sync
 - **@dnd-kit** — drag-and-drop in SongGridView and SetlistDetail
 - **Web Audio API** — metronome scheduling via `useMetronome` hook
 - **vite-plugin-pwa** — service worker, offline support, installable
@@ -26,6 +30,9 @@ Custom classes in `src/index.css` are defined _after_ `@import "tailwindcss"`. T
 ### Song Starter vs regular play
 `isStarterMode` local state in `Metronome.jsx` tracks which button initiated playback, keeping the starter trigger button and main play button visually independent even though they share the same `isPlaying` state from the store.
 
+### Sync
+Sync is local-first: Dexie is always the source of truth, and an authenticated user's data pushes/pulls against Supabase via delta sync (`src/lib/sync.js`) keyed on `updatedAt`. `useSyncEngine` fires it automatically on sign-in, tab focus, reconnect, and a 60s idle interval, with a manual "Sync Now" button in the account panel as a fallback. Conflicts resolve last-write-wins using a server-stamped timestamp.
+
 ## Features
 
 - **Metronome** — BPM, time signature, sound profile (beep/woodblock/cowbell), pitch, volume, mute, tap tempo
@@ -37,6 +44,8 @@ Custom classes in `src/index.css` are defined _after_ `@import "tailwindcss"`. T
 - **Setlists** — ordered sets within a show, drag-reorder, HTML/Print export
 - **Shows** — date-stamped events with multiple setlists
 - **Performance Mode** — full-screen display with BPM readout, beat pulse, song navigation, auto-start
+- **Account & Sync** — optional magic-link sign-in (Supabase), automatic cross-device sync of the whole library
+- **Backup/Restore** — JSON export/import (whole library or single artist), CSV/XLSX import templates
 
 ## Development
 
@@ -45,58 +54,14 @@ npm install
 npm run dev       # dev server
 npm run build     # production build
 npm run lint      # ESLint
+npm test          # run Vitest suite once
+npm run test:watch
 ```
+
+Sync requires Supabase credentials at build/run time. Copy `.env.example` to `.env` and fill in `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (schema in `supabase-schema.sql`). Without them the app still runs fully offline — sign-in just won't work.
 
 ## Testing
 
-**No test framework is currently installed.**
+Vitest covers the pure-logic layer: the Dexie helpers (`addRow`/`updateRow`/`softDelete`/`createId`), the sync engine's push/pull round trip, and the camelCase ↔ snake_case column mappers (`src/db/__tests__`, `src/lib/__tests__`). IndexedDB is mocked with `fake-indexeddb`; Supabase calls are stubbed in the sync tests.
 
-### Assessment
-
-The app is UI-heavy with several dependencies (Web Audio API, IndexedDB/Dexie, @dnd-kit) that are difficult to test in a headless environment. A full component test suite would have a high setup cost relative to its value.
-
-### What is worth testing (pure logic layer)
-
-| Target | File | Effort | Value |
-|---|---|---|---|
-| Import parsers | `src/components/SongImport.jsx` — `guessMapping`, `parseTimeSig`, `validateRow`, `buildSong` | ~20 min | High — catches regressions in CSV/XLSX import |
-| Export builder | `src/components/SetlistExport.jsx` — `buildSetlistData` | ~15 min | High — pure function, easy to assert |
-| Store transitions | `src/store/useAppStore.js` | ~15 min | Medium — Zustand stores test cleanly |
-| BPM math | `src/hooks/useMetronome.js` — `semitoneRatio` | ~10 min | Low — trivial function |
-
-### What is not worth testing
-
-- **Components** — Dexie mocking + DnD interaction simulation is a significant rabbit hole
-- **Web Audio API** — requires a browser, `AudioContext` is not available in jsdom
-- **Visual/layout correctness** — not automatable; use manual review
-
-### Setup cost if adding Vitest (~10 min)
-
-```bash
-npm install -D vitest jsdom
-```
-
-Add to `vite.config.js`:
-```js
-test: {
-  environment: 'jsdom',
-}
-```
-
-Add to `package.json` scripts:
-```json
-"test": "vitest"
-```
-
-### Current QA approach
-- Code review passes (ask Claude to review before shipping)
-- Manual testing on target devices (desktop Chrome/Safari, Android Chrome, iOS Safari/Chrome)
-- `npm run build` as a smoke test — catches import errors and type issues at build time
-
-## Roadmap
-
-1. ~~Finish redesign~~ — all components on Analog Precision aesthetic ✓
-2. ~~Performance Mode polish~~ — song notes display, clearer AUTO-START toggle ✓
-3. ~~Quick-load from Song Library~~ — loads song to metronome and switches to Tempo tab ✓
-4. **PWA manifest & icons** — custom icons matching Analog Precision aesthetic + SetTempo favicon
-5. **Sync / accounts** — `sensors` icon in header is placeholder; needs backend
+Not covered, deliberately: components (Dexie + `@dnd-kit` interaction mocking has a poor cost/value ratio), the Web Audio scheduling in `useMetronome` (no `AudioContext` in jsdom), and visual/layout correctness (manual review across desktop Chrome/Safari, Android Chrome, iOS Safari/Chrome). `npm run build` doubles as a smoke test for import/type errors.

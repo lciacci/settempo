@@ -473,7 +473,7 @@
     <p>Use the search box to find songs by title. Use the BPM min/max fields to filter by tempo range — useful for finding all your slow songs or high-energy ones.</p>
 
     <h3 id="grid">Grid View</h3>
-    <p>Tap <strong>Grid</strong> to edit your song library as a spreadsheet. Click any cell to edit it, press <kbd>Tab</kbd> to move between columns, and press <kbd>Enter</kbd> to add a new row. Drag the <strong>⠿</strong> handle to reorder. Tap <strong>Save all</strong> when done.</p>
+    <p>Tap <strong>Grid</strong> to edit your song library as a spreadsheet. Click any cell to edit it, press <kbd>Tab</kbd> to move between columns, and press <kbd>Enter</kbd> to add a new row. Drag the <strong>⠿</strong> handle to reorder. Tap <strong>Commit All</strong> when done.</p>
 
     <h3 id="import">Importing from a Spreadsheet</h3>
     <p>If you already have your songs in Excel or a CSV file:</p>
@@ -502,8 +502,8 @@
 
     <h3 id="create-sets">Step 1 — Create Sets</h3>
     <p>Go to <strong>Library → Sets</strong> and tap <strong>New Set</strong>. Give it a name (e.g. "Set 1", "Acoustic Set", "Encore").</p>
-    <p>Tap the set row to open the Set Editor, then tap <strong>+ Add Song</strong> to build the song order. Drag the <strong>⠿</strong> handle to reorder. Use the <strong>Shuffle</strong> button to randomise the order, or <strong>Clear</strong> to empty the set.</p>
-    <p><strong>Overriding a song's tempo for a set:</strong> Tap any song row in the Set Editor to open the entry editor. You can set a local BPM, time signature, or notes that apply only in this set. The app will ask whether to apply the change to this entry only or update the song globally. Overridden values are highlighted in amber.</p>
+    <p>Tap the set row to open the Set Editor, then tap <strong>+ Add Track</strong> to build the song order. Drag the <strong>⠿</strong> handle to reorder. Use the <strong>Shuffle</strong> button to randomise the order, or <strong>Clear</strong> to empty the set.</p>
+    <p><strong>Overriding a song's tempo for a set:</strong> Tap any song row in the Set Editor to open the entry editor. You can set a local BPM, time signature, or notes that apply only in this set. When you change the BPM, the app asks whether to apply the change to this entry only or update the song globally. Overridden values are highlighted in amber.</p>
 
     <h3 id="shows">Step 2 — Create a Show</h3>
     <p>Go to <strong>Library → Shows</strong> and tap <strong>New Show</strong>. Give it a name (e.g. "The Venue — March 2026") and an optional date.</p>
@@ -535,7 +535,7 @@
     </ul>
 
     <h3>Auto Mode</h3>
-    <p>Toggle <strong>AUTO</strong> in the top bar to have the metronome start automatically each time you advance to a new song (uses the Auto-Start setting from Config).</p>
+    <p>Toggle <strong>Auto-Start</strong> in the top bar to have the metronome start automatically each time you advance to a new song (this is the same Auto-Start setting found in Config).</p>
 
     <div class="tip"><strong>Screen stays on:</strong> The screen will not sleep while Performance Mode is active (Wake Lock is enabled). Tap the power icon in the top bar to exit.</div>
 
@@ -588,13 +588,13 @@
     <div class="note"><strong>Note:</strong> The magic link expires after a short time. If it doesn't work, request a new one from the Connect panel.</div>
 
     <h3 id="syncing">Syncing Your Library</h3>
-    <p>Sync is manual — it runs when you tap <strong>Sync Now</strong> in the account panel. It works both ways:</p>
+    <p>Sync runs automatically — when you sign in, when you switch back to the app's tab, when your connection comes back online, and on a periodic check while the app is open. You can also tap <strong>Sync Now</strong> in the account panel to trigger it on demand. It works both ways:</p>
     <ul>
       <li><strong>Push</strong> — any locally added or changed records since your last sync are uploaded to the server</li>
       <li><strong>Pull</strong> — any records added or changed on another device since your last sync are downloaded into your local library</li>
     </ul>
-    <p>The panel shows when you last synced. Deleted items (soft-deleted) are also synced, so deletions propagate across devices.</p>
-    <div class="tip"><strong>Conflict resolution:</strong> If the same record was edited on two devices between syncs, the version with the later timestamp wins. To be safe, sync before making changes on a second device.</div>
+    <p>The panel shows when you last synced. Deleted items are also synced, so deletions propagate across devices.</p>
+    <div class="tip"><strong>Conflict resolution:</strong> If the same record was edited on two devices between syncs, the version with the later timestamp wins. To be safe, let a sync complete before making changes on a second device.</div>
 
     <h3>Sync Status Indicator</h3>
     <p>When signed in, the sensors icon shows a small <span class="badge amber">● amber</span> LED dot. Tap it to open the account panel. The panel shows your email, last sync time, and a spinning icon while a sync is in progress.</p>
