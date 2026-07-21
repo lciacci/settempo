@@ -28,3 +28,18 @@ CLAUDE-FOLLOWUP.md
 *.njsproj
 *.sln
 *.sw?
+
+# --- Tessera harness ---
+.tessera/logs/*
+!.tessera/logs/README.md
+# .tessera/config.yml is COMMITTED, deliberately — it carries `test:`, the command an agent
+# must never have to guess. A test command that vanishes on a fresh clone is useless to the
+# unsupervised agent it exists for. Keep secrets out of it, not the file out of git.
+.mnemos/
+.icpg/
+.claude/.tdd-iteration-count
+
+# Python (Tessera tooling)
+__pycache__/
+*.pyc
+.venv/

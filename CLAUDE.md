@@ -113,3 +113,80 @@ Schema in `supabase-schema.sql`. Composite PKs (`user_id, id`). RLS enabled on a
 ## Roadmap / Next
 - Supabase Redirect URL must be configured per environment before auth works
 - Audio feedback review (users have flagged audio issues — investigate Web Audio timing)
+
+---
+
+# Tessera harness
+
+SetTempo is a Tessera downstream project (adopted 2026-07-21). Profile `standard`, declared in
+`.tessera/project.yml`. The framework lives at `../tessera`; framework-level fixes land there,
+not here.
+
+## Working conventions
+
+How the project owner works. The most important section.
+
+- **Push back when you see drift.** Don't perform agreement. If a decision seems wrong or an
+  assumption seems loaded, surface it — as honest feedback, not a refusal.
+- **"Batching" is a one-word signal.** It means you're bundling decisions into prose instead of
+  surfacing them as numbered choices. Stop, list the decisions, ask before committing.
+- **Surface decisions before committing them.** Multi-step or irreversible changes warrant a
+  brief "here's what I'd do, OK to proceed?"
+- **Also record each surfaced gate — a separate step, backstopped.**
+  `python3 scripts/gate/emit.py --fired --kind <kind> --note "<what you proposed>"` (`--held` if
+  you weighed surfacing one and decided against; `--kind` is a closed enum: `design | scope |
+  sequencing | process | finding | doc | outward`). A Stop hook
+  (`.claude/scripts/tessera-gate-scan.sh` → `scripts/gate/scan.py`) counts gate-shaped turns in
+  the transcript, diffs them against the session's gate log, and exits 2 on a gap.
+  **Its detector is a recall net, not an oracle — you are the precision filter.** When it fires,
+  log the gates you genuinely surfaced and say plainly which detected turns were only clarifying
+  questions. It stays quiet on a gap of 1, so keep logging as you go.
+- **When you are blocked and cannot proceed, raise an escalation — don't just say so and stop.**
+  `tessera-escalate raise --category <cat> --summary "<what's stuck>" --tried "<attempt — how it
+  failed>" --option "<what to choose between>"` (if `tessera/bin` isn't on PATH, use
+  `python3 scripts/tessera-escalate`). `--tried` is required — a packet with no attempts is a
+  complaint, not an escalation.
+- **Use numbered lists for decision points.** Binary A/B beats a dense paragraph.
+- **Name biases you notice in your own reasoning** — confirmation, sunk-cost, excitement,
+  familiarity, anchoring.
+- **Brief acknowledgments.** "Done," "Confirmed," "Clean."
+- **Flag confidence levels.** What you know vs. infer vs. guess.
+
+## Findings channel
+
+Runtime friction with Tessera itself goes in `docs/FINDINGS.md` — one finding per
+`## F-NNN — Title` with a `**Status:**` line. It surfaces in the framework's SessionStart via
+`tessera-findings`. An empty channel is meaningfully different from a missing file; don't delete it.
+
+## Hook lifecycle (Mnemos)
+
+Hooks in `.claude/settings.json` invoke scripts in `.claude/scripts/`; mnemos hooks resolve from
+`~/.claude/templates` (`hook_distro: global` — no local copies, zero drift).
+
+- **SessionStart** — loads any prior checkpoint
+- **PreCompact** — emergency checkpoint before compaction
+- **PreToolUse** — post-compaction restore check; fatigue/intent check on Edit/Write
+- **PostToolUse** — logs tool outcomes
+- **Stop** — checkpoint, transcript ingest + haze scoring, gate scan
+
+When you see `MNEMOS CHECKPOINT` in context, a hook injected it — announce briefly, resume from
+it, don't re-derive.
+
+**This repo has no `.venv`.** The mnemos hooks try `.venv/bin/mnemos` first, then fall back to
+`command -v mnemos` — so here they depend on `~/.local/bin/mnemos` being a live symlink into the
+framework's venv. If hooks go silent, that link is the first thing to check (`readlink $(command -v
+mnemos)`); repair with `../tessera/install.sh`. This is F-001's failure shape: a broken link makes
+every hook fail open into silence rather than erroring.
+
+## Tessera commands
+
+- **`npm test`** — the suite. Declared in `.tessera/config.yml` as `test:`; never guess it.
+- **`python3 scripts/gate/emit.py`** — record a surfaced gate (stdlib-only, bare `python3` is fine).
+- **`tessera-escalate`** — raise/resolve a blocking escalation.
+- **`tessera-watch`** — evaluate observatory triggers.
+
+## Don't (harness)
+
+- Don't edit `.env` / `.env.*` (also denied in `.claude/settings.json`).
+- Don't commit secrets.
+- Don't delete `docs/FINDINGS.md` when it's empty — empty ≠ missing.
