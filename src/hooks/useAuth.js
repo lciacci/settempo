@@ -20,8 +20,17 @@ export function useAuth() {
 
     const refresh = async () => {
       try {
-        const { data } = await neon.auth.getSession()
-        if (!cancelled) setSession(toSession(data))
+        const { data, error } = await neon.auth.getSession()
+        if (cancelled) return
+        // A failed session check is not the same as being signed out.
+        // Swallowing `error` here would render the signed-out UI on a network
+        // blip and quietly discard the user's session state.
+        if (error) {
+          notify(`SESSION CHECK FAILED · ${describeError(error)}`, 'error')
+          setSession(null)
+          return
+        }
+        setSession(toSession(data))
       } catch (err) {
         if (cancelled) return
         notify(`SESSION CHECK FAILED · ${describeError(err)}`, 'error')
@@ -75,7 +84,19 @@ export function useAuth() {
       }
       // Adopt the session immediately rather than waiting for the next
       // visibility check — this is an in-app transition, not a redirect.
-      setSession(toSession(data))
+      //
+      // Read it back rather than trusting the sign-in response shape: if it
+      // ever differs from getSession()'s, trusting it would show a success
+      // toast while leaving the app signed out. Falls back to the response
+      // if the read-back fails for any reason.
+      let next = toSession(data)
+      try {
+        const { data: current } = await neon.auth.getSession()
+        next = toSession(current) ?? next
+      } catch {
+        // Keep whatever sign-in returned; the visibility check will correct it.
+      }
+      setSession(next)
       notify('AUTHENTICATED', 'ok')
       return { error: null }
     } catch (err) {

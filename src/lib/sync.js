@@ -1,5 +1,6 @@
 import { db } from '../db/db'
 import { neon } from './neon'
+import { notify } from './notify'
 
 // ── Persistence ────────────────────────────────────────────────────────────
 //
@@ -212,7 +213,44 @@ async function pull(userId, lastSyncedAt) {
 
 // ── Public entry point ────────────────────────────────────────────────────
 
+// ── Account scoping ───────────────────────────────────────────────────────
+// Dexie has no user_id column: the local store holds exactly one account's
+// library. Nothing enforced that, so signing in as a second user on a shared
+// device merged both libraries into one and then pushed the result up under
+// whichever account was active.
+//
+// Handled on sign-IN rather than sign-out deliberately. Clearing on sign-out
+// would destroy any local edit that had not been pushed yet — including the
+// offline case, where sign-out is exactly when a push cannot happen. Signing
+// back in as the same user keeps everything and re-syncs normally; only a
+// genuinely different account triggers the wipe.
+const lastUserKey = 'settempo_lastUserId'
+
+export async function ensureUserScope(userId) {
+  const previous = localStorage.getItem(lastUserKey)
+  if (previous === userId) return { cleared: false }
+
+  if (previous) {
+    await db.transaction('rw', TABLE_ORDER.map((t) => db[t]), async () => {
+      for (const table of TABLE_ORDER) await db[table].clear()
+    })
+    // The outgoing account's watermarks would otherwise suppress the new
+    // account's first pull.
+    localStorage.removeItem(pushedKey(previous))
+    localStorage.removeItem(syncedKey(previous))
+  }
+
+  localStorage.setItem(lastUserKey, userId)
+  return { cleared: Boolean(previous) }
+}
+
 export async function runSync(userId) {
+  // Must run before the watermarks are read below.
+  const { cleared } = await ensureUserScope(userId)
+  if (cleared) {
+    notify('LOCAL LIBRARY CLEARED · DIFFERENT ACCOUNT SIGNED IN', 'error')
+  }
+
   // Snapshot before push so any local writes during the push window are
   // picked up on the next sync rather than silently dropped.
   const pushStartedAt = Date.now()

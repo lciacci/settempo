@@ -7,7 +7,7 @@ vi.mock('../neon', () => ({
 }))
 
 import { db, addRow, softDelete } from '../../db/db'
-import { runSync, getLastPushedAt, getLastSyncedAt } from '../sync'
+import { runSync, ensureUserScope, getLastPushedAt, getLastSyncedAt } from '../sync'
 
 const userId = '00000000-0000-0000-0000-000000000000'
 
@@ -111,5 +111,43 @@ describe('runSync', () => {
 
     const pushed = captured.find((c) => c.tableName === 'artists')
     expect(pushed.rows[0].deleted_at).toBeGreaterThan(0)
+  })
+})
+
+describe('ensureUserScope', () => {
+  beforeEach(async () => {
+    for (const k of Object.keys(localStorage)) localStorage.removeItem(k)
+    await db.artists.clear()
+  })
+
+  it('keeps the library when the same user signs back in', async () => {
+    const id = await addRow('artists', { name: 'Mine' })
+    await ensureUserScope('user-a')
+    await ensureUserScope('user-a')
+    expect(await db.artists.get(id)).toBeTruthy()
+  })
+
+  it('clears the library when a different account signs in', async () => {
+    await addRow('artists', { name: 'User A library' })
+    await ensureUserScope('user-a')
+    localStorage.setItem('settempo_lastSyncedAt_user-a', '999')
+    localStorage.setItem('settempo_lastPushedAt_user-a', '999')
+
+    const { cleared } = await ensureUserScope('user-b')
+
+    expect(cleared).toBe(true)
+    expect(await db.artists.count()).toBe(0)
+    // Stale watermarks would otherwise suppress user-b's first pull.
+    expect(localStorage.getItem('settempo_lastSyncedAt_user-a')).toBeNull()
+    expect(localStorage.getItem('settempo_lastPushedAt_user-a')).toBeNull()
+  })
+
+  it('does not clear on a first-ever sign-in', async () => {
+    const id = await addRow('artists', { name: 'Pre-auth work' })
+    const { cleared } = await ensureUserScope('user-a')
+    expect(cleared).toBe(false)
+    // Local-first: work done before signing in belongs to the account that
+    // then claims it, not to the bin.
+    expect(await db.artists.get(id)).toBeTruthy()
   })
 })
