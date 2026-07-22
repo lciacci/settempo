@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react'
 import { neon, toSession } from '../lib/neon'
 import { describeError, notify } from '../lib/notify'
 
+// Email OTP rather than magic link. A magic link is a redirect flow: the user
+// leaves the app, opens Mail, and taps a link that iOS hands to Safari — not
+// to the installed standalone PWA. They end up signed in inside a browser tab
+// while the app on their home screen is still signed out. A typed code never
+// leaves the app, so the installed context survives.
+
 export function useAuth() {
   const [session, setSession] = useState(undefined) // undefined = loading
 
@@ -23,11 +29,8 @@ export function useAuth() {
       }
     }
 
-    // Magic link completes as a full page navigation back to callbackURL, so
-    // this mount-time read is what actually picks up a new sign-in — there is
-    // no in-page auth event to subscribe to. The visibility check covers the
-    // link being opened in another tab, which would otherwise leave this one
-    // sitting signed-out until reload.
+    // Re-check when the tab regains focus, so a session established elsewhere
+    // (or one that expired while backgrounded) is picked up without a reload.
     const onVisible = () => {
       if (document.visibilityState === 'visible') refresh()
     }
@@ -40,21 +43,40 @@ export function useAuth() {
     }
   }, [])
 
-  // Both of these return { error } so AuthModal's contract is unchanged from
-  // the Supabase implementation, and a thrown rejection is normalised into
-  // that same shape rather than escaping as an unhandled rejection.
-  const signIn = async (email) => {
+  // All three return { error } so callers branch on one shape, and a thrown
+  // rejection is normalised into it rather than escaping unhandled.
+  const sendCode = async (email) => {
     try {
-      // Return to the page the user started from, minus any query or hash —
-      // the same redirect target the Supabase implementation used.
-      const callbackURL = window.location.href.split(/[?#]/)[0]
-      const { error } = await neon.auth.signIn.magicLink({ email, callbackURL })
+      const { error } = await neon.auth.emailOtp.sendVerificationOtp({
+        email,
+        type: 'sign-in',
+      })
+      if (error) {
+        const detail = describeError(error)
+        notify(`CODE REQUEST FAILED · ${detail}`, 'error')
+        return { error: { message: detail } }
+      }
+      notify(`CODE SENT · ${email.toUpperCase()}`, 'ok')
+      return { error: null }
+    } catch (err) {
+      const detail = describeError(err)
+      notify(`CODE REQUEST FAILED · ${detail}`, 'error')
+      return { error: { message: detail } }
+    }
+  }
+
+  const verifyCode = async (email, otp) => {
+    try {
+      const { data, error } = await neon.auth.signIn.emailOtp({ email, otp })
       if (error) {
         const detail = describeError(error)
         notify(`SIGN-IN FAILED · ${detail}`, 'error')
         return { error: { message: detail } }
       }
-      notify(`SIGN-IN LINK SENT · ${email.toUpperCase()}`, 'ok')
+      // Adopt the session immediately rather than waiting for the next
+      // visibility check — this is an in-app transition, not a redirect.
+      setSession(toSession(data))
+      notify('AUTHENTICATED', 'ok')
       return { error: null }
     } catch (err) {
       const detail = describeError(err)
@@ -80,5 +102,5 @@ export function useAuth() {
     }
   }
 
-  return { session, loading: session === undefined, signIn, signOut }
+  return { session, loading: session === undefined, sendCode, verifyCode, signOut }
 }

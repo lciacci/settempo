@@ -87,6 +87,30 @@ JWKS rotation.
 - Project: `delicate-snow-15340889` in org `org-dry-mode-76698079`, pg 18,
   aws-us-east-2. A duplicate project created during onboarding was deleted.
 
+## Amended 2026-07-22 — Email OTP instead of magic link
+
+The original decision said magic link, mirroring the Supabase behaviour. Changed to
+Email OTP after the magic-link endpoint returned 404 (the plugin was never enabled)
+and the trade-off was re-examined.
+
+A magic link is a redirect flow. The user leaves the app, opens Mail, and taps a link
+that iOS hands to **Safari — not to the installed standalone PWA**. They end up signed
+in inside a browser tab while the app on their home screen is still signed out. SetTempo
+is installable and its users are exactly the population who add it to a home screen, so
+this is the common path, not the edge case.
+
+Email OTP never leaves the app: the code is read and typed. The code input carries
+`autocomplete="one-time-code"`, so iOS and Android offer it from the notification
+without switching to Mail.
+
+`useAuth` exposes `sendCode(email)` / `verifyCode(email, otp)` in place of
+`signIn(email)`. `AuthModal` gained a code-entry step; a wrong code returns to that
+step rather than to the start, so the email is not discarded.
+
+Email OTP was already enabled on the Neon Auth instance; magic link was not. Endpoints
+were probed directly rather than assumed — `/sign-in/magic-link` 404, both
+`/email-otp/send-verification-otp` and `/sign-in/email-otp` live.
+
 ## Re-evaluate if
 
 - The Data API leaves Beta with breaking changes, or stays Beta past the point

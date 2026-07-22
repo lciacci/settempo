@@ -31,7 +31,7 @@ export default function App() {
     performance, setPerformance,
   } = useAppStore()
 
-  const { session, signIn, signOut } = useAuth()
+  const { session, sendCode, verifyCode, signOut } = useAuth()
   const { sync, syncState, lastSynced, syncError } = useSyncEngine(session)
 
   const [activeTab, setActiveTab] = useState('Metronome')
@@ -251,7 +251,8 @@ export default function App() {
       {showAuthModal && (
         <AuthModal
           session={session}
-          onSignIn={signIn}
+          onSendCode={sendCode}
+          onVerifyCode={verifyCode}
           onSignOut={signOut}
           onClose={() => setShowAuthModal(false)}
           onSync={sync}

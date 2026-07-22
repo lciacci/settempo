@@ -9,21 +9,43 @@ function formatLastSynced(ts) {
   return new Date(ts).toLocaleDateString()
 }
 
-export default function AuthModal({ session, onSignIn, onSignOut, onClose, onSync, syncState, lastSynced, syncError }) {
+const OTP_LENGTH = 6
+
+export default function AuthModal({ session, onSendCode, onVerifyCode, onSignOut, onClose, onSync, syncState, lastSynced, syncError }) {
   const [email, setEmail] = useState('')
-  const [status, setStatus] = useState('idle') // 'idle' | 'sending' | 'sent' | 'error'
+  const [code, setCode] = useState('')
+  // 'idle' → 'sending' → 'code' → 'verifying'. 'error' returns to whichever
+  // step raised it, so a bad code does not throw away the email.
+  const [status, setStatus] = useState('idle')
   const [errorMsg, setErrorMsg] = useState('')
+
+  const awaitingCode = status === 'code' || status === 'verifying'
 
   const handleSend = async () => {
     if (!email.trim()) return
     setStatus('sending')
     setErrorMsg('')
-    const { error } = await onSignIn(email.trim())
+    const { error } = await onSendCode(email.trim())
     if (error) {
       setErrorMsg(error.message)
-      setStatus('error')
+      setStatus('idle')
     } else {
-      setStatus('sent')
+      setCode('')
+      setStatus('code')
+    }
+  }
+
+  const handleVerify = async () => {
+    if (code.length !== OTP_LENGTH) return
+    setStatus('verifying')
+    setErrorMsg('')
+    const { error } = await onVerifyCode(email.trim(), code)
+    if (error) {
+      setErrorMsg(error.message)
+      // Back to the code step, not to the start — the code is what was
+      // wrong, and making them retype their email would be punishment.
+      setStatus('code')
+      setCode('')
     }
   }
 
@@ -101,34 +123,57 @@ export default function AuthModal({ session, onSignIn, onSignOut, onClose, onSyn
                 Disconnect
               </button>
             </>
-          ) : status === 'sent' ? (
-            /* ── Link sent state ── */
+          ) : awaitingCode ? (
+            /* ── Code entry ── */
             <>
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_#9bd2b7] flex-shrink-0" />
                 <p className="font-mono-digital text-[9px] text-secondary uppercase tracking-widest">Signal Transmitted</p>
               </div>
-              <div className="bg-surface-container-high border border-outline-variant/20 rounded-sm px-4 py-4 space-y-2">
-                <p className="font-mono-digital text-[10px] text-on-surface uppercase tracking-wide">
-                  Link sent to:
-                </p>
-                <p className="font-label text-sm text-primary font-semibold">{email}</p>
-                <p className="font-mono-digital text-[9px] text-outline uppercase tracking-wide leading-relaxed mt-2">
-                  Click the link in your email to sign in. You can close this panel.
-                </p>
+              <p className="font-mono-digital text-[9px] text-outline uppercase tracking-wide leading-relaxed">
+                Enter the {OTP_LENGTH}-digit code sent to{' '}
+                <span className="text-primary">{email}</span>
+              </p>
+
+              <div className="space-y-3">
+                <input
+                  autoFocus
+                  type="text"
+                  inputMode="numeric"
+                  // Lets iOS and Android offer the code straight from the
+                  // notification instead of making the user switch to Mail.
+                  autoComplete="one-time-code"
+                  maxLength={OTP_LENGTH}
+                  placeholder="––––––"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH))}
+                  onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 text-primary font-mono-digital text-2xl text-center tracking-[0.5em] px-3 py-3 rounded-sm outline-none focus:border-primary/60 placeholder:text-outline/30"
+                />
+                {errorMsg && (
+                  <p className="font-mono-digital text-[9px] text-error uppercase tracking-wide">{errorMsg}</p>
+                )}
+                <button
+                  onClick={handleVerify}
+                  disabled={status === 'verifying' || code.length !== OTP_LENGTH}
+                  className="w-full py-2.5 bg-primary-container text-on-primary font-headline font-black text-[10px] uppercase tracking-widest rounded-sm hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {status === 'verifying' ? 'Verifying…' : 'Authenticate'}
+                </button>
               </div>
+
               <button
-                onClick={() => { setStatus('idle'); setEmail('') }}
+                onClick={() => { setStatus('idle'); setCode(''); setErrorMsg('') }}
                 className="w-full py-2.5 border border-outline-variant/20 text-outline hover:text-on-surface font-mono-digital text-[10px] uppercase tracking-widest rounded-sm transition-colors"
               >
-                Send to different address
+                Use a different address
               </button>
             </>
           ) : (
             /* ── Idle / error state ── */
             <>
               <p className="font-mono-digital text-[9px] text-outline uppercase tracking-wide leading-relaxed">
-                Enter your email to receive a sign-in link. No password required.
+                Enter your email to receive a sign-in code. No password required.
               </p>
               <div className="space-y-3">
                 <input
@@ -140,7 +185,7 @@ export default function AuthModal({ session, onSignIn, onSignOut, onClose, onSyn
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                   className="w-full bg-surface-container-lowest border border-outline-variant/30 text-on-surface font-label text-sm px-3 py-2.5 rounded-sm outline-none focus:border-primary/60 placeholder:text-outline/40"
                 />
-                {status === 'error' && (
+                {errorMsg && (
                   <p className="font-mono-digital text-[9px] text-error uppercase tracking-wide">{errorMsg}</p>
                 )}
                 <button
@@ -148,7 +193,7 @@ export default function AuthModal({ session, onSignIn, onSignOut, onClose, onSyn
                   disabled={status === 'sending' || !email.trim()}
                   className="w-full py-2.5 bg-primary-container text-on-primary font-headline font-black text-[10px] uppercase tracking-widest rounded-sm hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {status === 'sending' ? 'Transmitting…' : 'Send Link'}
+                  {status === 'sending' ? 'Transmitting…' : 'Send Code'}
                 </button>
               </div>
             </>
