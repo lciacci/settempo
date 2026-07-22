@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mappers, TABLE_ORDER, SUPABASE_TABLE } from '../sync'
+import { mappers, TABLE_ORDER, REMOTE_TABLE } from '../sync'
 
 const userId = 'user-abc'
 
@@ -40,7 +40,7 @@ describe('sync mappers', () => {
   it('cover every table in TABLE_ORDER', () => {
     for (const t of TABLE_ORDER) {
       expect(mappers[t]).toBeDefined()
-      expect(SUPABASE_TABLE[t]).toBeDefined()
+      expect(REMOTE_TABLE[t]).toBeDefined()
     }
   })
 

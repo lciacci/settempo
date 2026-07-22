@@ -1,5 +1,5 @@
 import { db } from '../db/db'
-import { supabase } from './supabase'
+import { neon } from './neon'
 
 // ── Persistence ────────────────────────────────────────────────────────────
 //
@@ -124,7 +124,7 @@ export const mappers = {
   },
 }
 
-export const SUPABASE_TABLE = {
+export const REMOTE_TABLE = {
   artists:     'artists',
   songs:       'songs',
   sets:        'sets',
@@ -154,8 +154,8 @@ async function push(userId, lastPushedAt) {
     if (!records.length) continue
 
     const rows = records.map((r) => stripUpdatedAt(mappers[table].toRemote(r, userId)))
-    const { data, error } = await supabase
-      .from(SUPABASE_TABLE[table])
+    const { data, error } = await neon
+      .from(REMOTE_TABLE[table])
       .upsert(rows, { onConflict: 'user_id,id' })
       .select()
     if (error) throw new Error(`Push ${table}: ${error.message}`)
@@ -179,8 +179,8 @@ async function push(userId, lastPushedAt) {
 async function pull(userId, lastSyncedAt) {
   let maxServerTs = lastSyncedAt
   for (const table of TABLE_ORDER) {
-    const { data, error } = await supabase
-      .from(SUPABASE_TABLE[table])
+    const { data, error } = await neon
+      .from(REMOTE_TABLE[table])
       .select('*')
       .eq('user_id', userId)
       .gt('updated_at', lastSyncedAt)

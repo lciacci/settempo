@@ -34,8 +34,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.js'],
     env: {
-      VITE_SUPABASE_URL: 'http://localhost:54321',
-      VITE_SUPABASE_ANON_KEY: 'test-anon-key',
+      VITE_NEON_AUTH_URL: 'http://localhost:5555',
+      VITE_NEON_DATA_API_URL: 'http://localhost:5555/rest/v1',
     },
   },
 })

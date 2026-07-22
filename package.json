@@ -17,7 +17,6 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@neon/config": "^0.9.5",
     "@neondatabase/neon-js": "^0.6.2-beta",
-    "@supabase/supabase-js": "^2.100.0",
     "@tailwindcss/vite": "^4.2.1",
     "dexie": "^4.3.0",
     "dexie-react-hooks": "^4.2.0",

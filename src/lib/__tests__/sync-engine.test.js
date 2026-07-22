@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 const { from } = vi.hoisted(() => ({ from: vi.fn() }))
 
-vi.mock('../supabase', () => ({
-  supabase: { from },
+vi.mock('../neon', () => ({
+  neon: { from },
 }))
 
 import { db, addRow, softDelete } from '../../db/db'
@@ -11,7 +11,7 @@ import { runSync, getLastPushedAt, getLastSyncedAt } from '../sync'
 
 const userId = '00000000-0000-0000-0000-000000000000'
 
-const stubSupabase = ({ pullData = {}, captureUpsert = null } = {}) => {
+const stubRemote = ({ pullData = {}, captureUpsert = null } = {}) => {
   from.mockImplementation((tableName) => ({
     upsert: vi.fn((rows) => {
       if (captureUpsert) captureUpsert.push({ tableName, rows })
@@ -45,7 +45,7 @@ describe('runSync', () => {
 
   it('push omits updated_at from payload and updates local updatedAt from server', async () => {
     const captured = []
-    stubSupabase({ captureUpsert: captured })
+    stubRemote({ captureUpsert: captured })
 
     const id = await addRow('artists', { name: 'Beatles' })
     await runSync(userId)
@@ -65,7 +65,7 @@ describe('runSync', () => {
     // Disable push of the row by setting lastPushedAt far in the future.
     localStorage.setItem(`settempo_lastPushedAt_${userId}`, String(Date.now() + 10_000_000))
 
-    stubSupabase({
+    stubRemote({
       pullData: {
         artists: [{
           id, user_id: userId, name: 'Doomed',
@@ -80,7 +80,7 @@ describe('runSync', () => {
   })
 
   it('watermarks are split: lastPushedAt is local, lastSyncedAt is server-driven', async () => {
-    stubSupabase({
+    stubRemote({
       pullData: {
         songs: [{
           id: 'remote-song', user_id: userId, artist_id: 'a',
@@ -103,7 +103,7 @@ describe('runSync', () => {
 
   it('soft-deleted local row is included in push payload', async () => {
     const captured = []
-    stubSupabase({ captureUpsert: captured })
+    stubRemote({ captureUpsert: captured })
 
     const id = await addRow('artists', { name: 'Gone' })
     await softDelete('artists', id)
