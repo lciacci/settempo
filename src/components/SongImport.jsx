@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { db, addRow } from '../db/db'
+import { attempt } from '../lib/notify'
 
 const APP_FIELDS = ['title', 'bpm', 'timeSig', 'notes']
 const APP_FIELD_LABELS = { title: 'Title', bpm: 'BPM', timeSig: 'Time Sig', notes: 'Notes' }
@@ -93,29 +94,39 @@ export default function SongImport({ artistId, onClose, onDone }) {
 
   const runImport = async () => {
     setImporting(true)
-    try {
-      if (importMode === 'replace') {
-        const now = Date.now()
-        await db.songs.where('artistId').equals(artistId).modify({ deletedAt: now, updatedAt: now })
-      }
-      for (const song of validRows) {
-        if (importMode === 'add') {
-          const existing = await db.songs
-            .where('artistId').equals(artistId)
-            .filter((s) => s.title.toLowerCase() === song.title.toLowerCase())
-            .first()
-          if (existing) {
-            await db.songs.update(existing.id, { ...song, updatedAt: Date.now() })
-            continue
-          }
+    const counts = { added: 0, updated: 0, skipped: errorRows.length }
+    const { ok } = await attempt(
+      async () => {
+        if (importMode === 'replace') {
+          const now = Date.now()
+          await db.songs.where('artistId').equals(artistId).modify({ deletedAt: now, updatedAt: now })
         }
-        await addRow('songs', { ...song, artistId })
-      }
-      setImportCount(validRows.length)
-      setStep('done')
-    } finally {
-      setImporting(false)
-    }
+        for (const song of validRows) {
+          if (importMode === 'add') {
+            const existing = await db.songs
+              .where('artistId').equals(artistId)
+              .filter((s) => s.title.toLowerCase() === song.title.toLowerCase())
+              .first()
+            if (existing) {
+              await db.songs.update(existing.id, { ...song, updatedAt: Date.now() })
+              counts.updated += 1
+              continue
+            }
+          }
+          await addRow('songs', { ...song, artistId })
+          counts.added += 1
+        }
+        return counts
+      },
+      {
+        success: (c) => `IMPORT COMPLETE · ${c.added} ADDED · ${c.updated} UPDATED · ${c.skipped} SKIPPED`,
+        failure: 'IMPORT FAILED',
+      },
+    )
+    setImporting(false)
+    if (!ok) return
+    setImportCount(counts.added + counts.updated)
+    setStep('done')
   }
 
   const downloadTemplate = async () => {

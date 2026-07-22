@@ -1,6 +1,35 @@
 import { create } from 'zustand'
 
+// System log retention. Long enough to read back a whole session's worth of
+// operations, short enough not to grow without bound.
+const LOG_LIMIT = 200
+
 export const useAppStore = create((set) => ({
+  // ── System log + toasts ──────────────────────────────────────────────────
+  // One store, two surfaces. `notify()` writes a durable entry to the system
+  // log *and* raises a transient toast. The toast is the surface you can't
+  // miss; the log is the record you can go back and read. Nothing a toast
+  // says is lost when it fades.
+  //
+  // The log is stored newest-first so display order needs no reversal and
+  // trimming drops the oldest entries, which is what `slice` does naturally.
+  systemLog: [{ id: 0, level: 'info', text: 'SYSTEM READY', at: null }],
+  toasts: [],
+  logSeq: 1,
+
+  notify: (text, level = 'info') =>
+    set((state) => {
+      const entry = { id: state.logSeq, level, text, at: Date.now() }
+      return {
+        logSeq: state.logSeq + 1,
+        systemLog: [entry, ...state.systemLog].slice(0, LOG_LIMIT),
+        toasts: [...state.toasts, entry],
+      }
+    }),
+
+  dismissToast: (id) =>
+    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+
   // Navigation
   currentArtistId: null,
   setCurrentArtistId: (id) => set({ currentArtistId: id }),

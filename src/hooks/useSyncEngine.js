@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { runSync, getLastSyncedAt } from '../lib/sync'
+import { describeError, notify } from '../lib/notify'
 
 // Polling interval. Chosen to be conservative: PWA, mostly idle. Push/pull
 // already runs on session change and tab focus, so this is the safety net.
@@ -29,8 +30,13 @@ export function useSyncEngine(session) {
       setSyncedAt(ts)
       setSyncState('done')
     } catch (e) {
-      setSyncError(e.message)
+      // Classify rather than surfacing a raw message: "Failed to fetch" reads
+      // identically whether the device is offline, the backend is down, or the
+      // session expired, and the remedy differs in each case.
+      const detail = describeError(e)
+      setSyncError(detail)
       setSyncState('error')
+      notify(`SYNC FAILED · ${detail}`, 'error')
     } finally {
       runningRef.current = false
     }

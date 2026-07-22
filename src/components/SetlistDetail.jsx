@@ -8,6 +8,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { db, addRow, softDelete } from '../db/db'
+import { attempt } from '../lib/notify'
 import { exportSetlistPrint, exportSetlistHTML } from './SetlistExport'
 
 function SetPicker({ artistId, onPick, onClose }) {
@@ -142,12 +143,15 @@ export default function SetlistDetail({ setlistId, artistId }) {
 
   const addSet = async (set, isLocalCopy) => {
     const pos = setlistSets?.length ?? 0
-    await addRow('setlistSets', {
-      setlistId,
-      setId: set.id,
-      position: pos,
-      isLocalCopy: isLocalCopy ?? false,
-    })
+    await attempt(
+      () => addRow('setlistSets', {
+        setlistId,
+        setId: set.id,
+        position: pos,
+        isLocalCopy: isLocalCopy ?? false,
+      }),
+      { success: `SET ADDED TO SETLIST · ${String(set.name).toUpperCase()}`, failure: 'ADD SET FAILED' },
+    )
     setShowPicker(false)
   }
 
