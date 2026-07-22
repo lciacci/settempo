@@ -202,6 +202,16 @@ How the project owner works. The most important section.
 - **Brief acknowledgments.** "Done," "Confirmed," "Clean."
 - **Flag confidence levels.** What you know vs. infer vs. guess.
 
+## Decision records
+
+Decisions that are expensive to reverse — data model, sync semantics, auth, backend choice —
+get an ADR in `docs/adr/`. Not UI, not library picks, not anything a `git revert` undoes
+cleanly. See `docs/adr/README.md` for the threshold and format.
+
+The *Consequences* section is the point: it must state the migration path for anything
+already deployed. ADR-0001 exists because that question went unasked once and cost the whole
+local user base.
+
 ## Findings channel
 
 Runtime friction with Tessera itself goes in `docs/FINDINGS.md` — one finding per

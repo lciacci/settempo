@@ -1,0 +1,77 @@
+# ADR-0002 — Migrate the backend from Supabase to Neon
+
+**Status:** proposed
+**Date:** 2026-07-22
+
+## Context
+
+SetTempo's backend is Supabase, which supplies three distinct things: a
+Postgres database, magic-link auth (`signInWithOtp`), and a browser-callable
+PostgREST interface that `src/lib/sync.js` pushes and pulls through, with RLS
+scoping rows per user.
+
+Moving to Neon was initially assessed as a re-architecture, on the assumption
+that Neon is Postgres-only and would leave auth and the browser REST layer
+without replacements. **That assessment was wrong** and was corrected by
+research on 2026-07-22.
+
+## Decision
+
+Migrate to Neon, replacing all three Supabase roles:
+
+| Role | Supabase | Neon |
+|---|---|---|
+| Database | Supabase Postgres | Neon Postgres |
+| Browser data access | PostgREST | Neon Data API (PostgREST-compatible) |
+| Auth | `signInWithOtp` | Neon Auth (managed Better Auth), magic-link plugin |
+| Client library | `@supabase/supabase-js` | `@neondatabase/neon-js` |
+
+The Neon Data API is a PostgREST reimplementation built into Neon's proxy
+fleet. It validates JWTs from any provider and enforces Postgres RLS.
+`neon-js` exposes `createClient(...).from().select().eq()` — close enough to
+`supabase-js` that `sync.js` should need little beyond an import swap.
+
+## Consequences
+
+- `src/lib/supabase.js` becomes a Neon client; env vars change.
+- `src/hooks/useAuth.js` moves from `signInWithOtp` to Neon Auth's magic-link
+  API. Session shape differs; `useSyncEngine` reads `session.user.id`.
+- RLS policies port, but the JWT accessor changes: `auth.uid()` →
+  `auth.user_id()` (reads the `sub` claim).
+- Composite PK `(user_id, id)` stays valid.
+- Dexie schema is untouched. UUID keys (ADR-0001) work against Neon
+  unchanged, so no local migration is required — which matters, given
+  ADR-0001's history.
+- Data moves by dump and restore. UUID keys make this clean.
+- **The Data API is Beta.** It is enabled per-branch for a single database
+  and is incompatible with IP Allow / Private Networking.
+- Neon Auth is free to 60K MAU; Neon free tier is 100 CU-hours/month and
+  0.5 GB storage — far above this app's needs.
+- Neon was acquired by Databricks in May 2025. Strategic risk for a project
+  running on a free tier.
+
+**Migration path for deployed state:** the user base is being reset
+deliberately (see ADR-0001 — most local data was already unreachable), so no
+production data migration is required. This ADR should be revisited if that
+changes before the cutover.
+
+## Alternatives considered
+
+**Stay on Supabase.** The incumbent works. The migration is elective, driven
+by preference rather than a defect.
+
+**Neon for Postgres only, keep Supabase Auth.** Rejected: splits the stack
+across two vendors and two billing relationships for no gain, now that Neon
+Auth covers magic link natively.
+
+**Neon Data API with a self-hosted auth layer.** Rejected as unnecessary work
+given managed Better Auth exists; would also mean owning JWT issuance and
+JWKS rotation.
+
+## Re-evaluate if
+
+- The Data API leaves Beta with breaking changes, or stays Beta past the point
+  of comfort
+- `sync.js` needs more than an import swap — specifically if
+  `.upsert(rows, { onConflict })` is unsupported, which is the one call the
+  sync layer leans on that is not a plain select
