@@ -15,14 +15,19 @@ const LEVEL_STYLES = {
   info:  { dot: 'bg-secondary',           text: 'text-on-surface', label: 'INFO' },
 }
 
-function Toast({ entry, onDismiss }) {
+function Toast({ entry, dismiss }) {
   const style = LEVEL_STYLES[entry.level] ?? LEVEL_STYLES.info
 
+  // Depends on the entry's identity and the store's stable action, not on a
+  // freshly-allocated closure — otherwise every new toast re-runs this effect
+  // for all the others and restarts their timers.
   useEffect(() => {
     if (entry.level === 'error') return
-    const t = setTimeout(onDismiss, DISMISS_AFTER_MS)
+    const t = setTimeout(() => dismiss(entry.id), DISMISS_AFTER_MS)
     return () => clearTimeout(t)
-  }, [entry.level, onDismiss])
+  }, [entry.id, entry.level, dismiss])
+
+  const onDismiss = () => dismiss(entry.id)
 
   return (
     <div className="brushed-metal rack-panel rounded-sm bg-surface-container-low border border-outline-variant/30 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.9)] pointer-events-auto">
@@ -57,7 +62,7 @@ export default function Toaster() {
   return (
     <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-80 z-[60] space-y-2 pointer-events-none">
       {toasts.map((entry) => (
-        <Toast key={entry.id} entry={entry} onDismiss={() => dismissToast(entry.id)} />
+        <Toast key={entry.id} entry={entry} dismiss={dismissToast} />
       ))}
     </div>
   )
