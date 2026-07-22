@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { db, addRow } from '../db/db'
-import { attempt } from '../lib/notify'
+import { attempt, notify } from '../lib/notify'
 
 const APP_FIELDS = ['title', 'bpm', 'timeSig', 'notes']
 const APP_FIELD_LABELS = { title: 'Title', bpm: 'BPM', timeSig: 'Time Sig', notes: 'Notes' }
@@ -53,6 +53,8 @@ function buildSong(raw, mapping) {
   }
 }
 
+const ACCEPTED = /\.(csv|xlsx|xls)$/i
+
 const STEPS = ['upload', 'map', 'preview', 'done']
 const STEP_LABELS = { upload: '01_LOAD', map: '02_MAP', preview: '03_VERIFY', done: '04_DONE' }
 
@@ -66,16 +68,34 @@ export default function SongImport({ artistId, onClose, onDone }) {
   const [importCount, setImportCount] = useState(0)
 
   const handleFile = useCallback((file) => {
+    // Every rejection below used to be a silent `return`, which left the
+    // dialog sitting on step 1 as though nothing had been clicked.
+    if (!ACCEPTED.test(file.name)) {
+      notify(`UNSUPPORTED FILE TYPE · ${file.name.split('.').pop().toUpperCase()} · USE CSV OR XLSX`, 'error')
+      return
+    }
+    if (file.size === 0) {
+      notify('FILE IS EMPTY', 'error')
+      return
+    }
+
     const reader = new FileReader()
+    reader.onerror = () => notify('COULD NOT READ FILE', 'error')
     reader.onload = async (e) => {
-      const XLSX = await import('xlsx')
-      const wb = XLSX.read(e.target.result, { type: 'array' })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      const data = XLSX.utils.sheet_to_json(ws, { defval: '' })
-      if (!data.length) return
-      const hdrs = Object.keys(data[0])
+      const { ok, result } = await attempt(async () => {
+        const XLSX = await import('xlsx')
+        const wb = XLSX.read(e.target.result, { type: 'array' })
+        if (!wb.SheetNames.length) throw new Error('No sheets in workbook')
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const data = XLSX.utils.sheet_to_json(ws, { defval: '' })
+        if (!data.length) throw new Error('No rows found — is the first sheet empty?')
+        return data
+      }, { failure: 'COULD NOT PARSE FILE' })
+      if (!ok) return
+
+      const hdrs = Object.keys(result[0])
       setHeaders(hdrs)
-      setRows(data)
+      setRows(result)
       setMapping(guessMapping(hdrs))
       setStep('map')
     }
@@ -96,7 +116,11 @@ export default function SongImport({ artistId, onClose, onDone }) {
     setImporting(true)
     const counts = { added: 0, updated: 0, skipped: errorRows.length }
     const { ok } = await attempt(
-      async () => {
+      // One transaction: a failure half-way through rolls back rather than
+      // leaving the library part-imported. Replace mode in particular used to
+      // be able to soft-delete everything and then fail before writing the
+      // replacements.
+      async () => db.transaction('rw', db.songs, async () => {
         if (importMode === 'replace') {
           const now = Date.now()
           await db.songs.where('artistId').equals(artistId).modify({ deletedAt: now, updatedAt: now })
@@ -105,7 +129,7 @@ export default function SongImport({ artistId, onClose, onDone }) {
           if (importMode === 'add') {
             const existing = await db.songs
               .where('artistId').equals(artistId)
-              .filter((s) => s.title.toLowerCase() === song.title.toLowerCase())
+              .filter((s) => !s.deletedAt && s.title.toLowerCase() === song.title.toLowerCase())
               .first()
             if (existing) {
               await db.songs.update(existing.id, { ...song, updatedAt: Date.now() })
@@ -117,7 +141,7 @@ export default function SongImport({ artistId, onClose, onDone }) {
           counts.added += 1
         }
         return counts
-      },
+      }),
       {
         success: (c) => `IMPORT COMPLETE · ${c.added} ADDED · ${c.updated} UPDATED · ${c.skipped} SKIPPED`,
         failure: 'IMPORT FAILED',

@@ -1,64 +1,7 @@
 import { useState, useRef } from 'react'
-import { db } from '../db/db'
 import { useAppStore } from '../store/useAppStore'
+import { exportAllData, importData } from '../lib/backup'
 import { describeError } from '../lib/notify'
-
-async function exportAllData(artistId) {
-  const tables = ['artists', 'songs', 'sets', 'setEntries', 'shows', 'setlists', 'setlistSets']
-  const data = {}
-
-  for (const table of tables) {
-    if (artistId && table === 'artists') {
-      data[table] = [await db.artists.get(artistId)].filter(Boolean)
-    } else if (artistId && table === 'songs') {
-      data[table] = await db.songs.where('artistId').equals(artistId).toArray()
-    } else if (artistId && table === 'sets') {
-      data[table] = await db.sets.where('artistId').equals(artistId).toArray()
-    } else if (artistId && table === 'shows') {
-      data[table] = await db.shows.where('artistId').equals(artistId).toArray()
-    } else {
-      data[table] = await db[table].toArray()
-    }
-  }
-
-  if (artistId) {
-    const setIds = new Set(data.sets.map((s) => s.id))
-    const showIds = new Set(data.shows.map((s) => s.id))
-
-    data.setEntries = (await db.setEntries.toArray()).filter((e) => setIds.has(e.setId))
-    data.setlists = (await db.setlists.toArray()).filter((sl) => showIds.has(sl.showId))
-    const setlistIds = new Set(data.setlists.map((sl) => sl.id))
-    data.setlistSets = (await db.setlistSets.toArray()).filter((ss) => setlistIds.has(ss.setlistId))
-  }
-
-  return data
-}
-
-async function importData(json, mode) {
-  const tables = ['artists', 'songs', 'sets', 'setEntries', 'shows', 'setlists', 'setlistSets']
-
-  if (mode === 'replace') {
-    for (const table of tables) await db[table].clear()
-  }
-
-  const idMap = {}
-
-  for (const table of tables) {
-    const rows = json[table] ?? []
-    for (const row of rows) {
-      const { id: oldId, ...rest } = row
-      if (rest.artistId && idMap.artists?.[rest.artistId]) rest.artistId = idMap.artists[rest.artistId]
-      if (rest.setId && idMap.sets?.[rest.setId]) rest.setId = idMap.sets[rest.setId]
-      if (rest.songId && idMap.songs?.[rest.songId]) rest.songId = idMap.songs[rest.songId]
-      if (rest.showId && idMap.shows?.[rest.showId]) rest.showId = idMap.shows[rest.showId]
-      if (rest.setlistId && idMap.setlists?.[rest.setlistId]) rest.setlistId = idMap.setlists[rest.setlistId]
-
-      const newId = await db[table].add(rest)
-      if (!idMap[table]) idMap[table] = {}
-      idMap[table][oldId] = newId
-    }
-  }
-}
 
 async function downloadTemplate() {
   const XLSX = await import('xlsx')
@@ -82,18 +25,27 @@ function downloadCSVTemplate() {
   a.click()
 }
 
-function ToggleSwitch({ active, onChange }) {
+// Track is 48px wide, knob 20px, inset 2px — so the travel is 48-20-2 = 26px.
+// The previous `translate-x-6` (24px) left the knob 2px from the left edge
+// when off but 4px from the right when on, which read as misaligned.
+function ToggleSwitch({ active, onChange, label }) {
   return (
     <button
+      role="switch"
+      aria-checked={active}
+      aria-label={label}
       onClick={() => onChange(!active)}
       className={`relative w-12 h-6 rounded-sm transition-colors duration-200 border ${
         active ? 'bg-primary-container border-primary/50' : 'bg-surface-container-lowest border-outline-variant/30'
       }`}
     >
       <span
-        className={`absolute top-0.5 w-5 h-5 rounded-sm transition-transform duration-200 ${
+        className={`absolute top-0.5 left-0 w-5 h-5 rounded-sm transition-transform duration-200 ${
           active
-            ? 'translate-x-6 bg-primary shadow-[0_0_8px_rgba(255,179,0,0.6)]'
+            // Dark knob on the amber track. Previously both were amber
+            // (bg-primary on bg-primary-container), so the knob dissolved
+            // into its own track and "on" was hard to read at a glance.
+            ? 'translate-x-[26px] bg-on-primary shadow-[0_0_8px_rgba(255,179,0,0.6)]'
             : 'translate-x-0.5 bg-surface-container-high'
         }`}
       />
@@ -109,6 +61,7 @@ export default function Settings({ currentArtistId }) {
   const [status, setStatus] = useState(null)
   const [importing, setImporting] = useState(false)
   const [importMode, setImportMode] = useState('add')
+  const [showRestore, setShowRestore] = useState(false)
   const fileRef = useRef()
 
   const { performance, setPerformance } = useAppStore()
@@ -142,12 +95,17 @@ export default function Settings({ currentArtistId }) {
     addLog(`IMPORT · MODE=${importMode.toUpperCase()} · ${file.name}`)
     try {
       const text = await file.text()
-      const json = JSON.parse(text)
-      await importData(json, importMode)
-      addLog(`IMPORT COMPLETE · MODE=${importMode.toUpperCase()}`, 'ok')
+      let json
+      try {
+        json = JSON.parse(text)
+      } catch {
+        throw new Error('File is not valid JSON')
+      }
+      const { rows, tables } = await importData(json, importMode)
+      addLog(`RESTORE COMPLETE · ${rows} RECORDS ACROSS ${tables} TABLES`, 'ok')
       setStatus('ok')
     } catch (e) {
-      addLog(`IMPORT FAILED · ${describeError(e)}`, 'error')
+      addLog(`RESTORE FAILED · ${describeError(e)} · NO CHANGES WRITTEN`, 'error')
       setStatus('error')
     } finally {
       setImporting(false)
@@ -186,6 +144,7 @@ export default function Settings({ currentArtistId }) {
               </div>
               <div className="flex flex-col items-center gap-1 flex-shrink-0">
                 <ToggleSwitch
+                  label="Auto-start metronome"
                   active={performance.autoStartMetronome}
                   onChange={(v) => {
                     setPerformance({ autoStartMetronome: v })
@@ -208,6 +167,7 @@ export default function Settings({ currentArtistId }) {
               </div>
               <div className="flex flex-col items-center gap-1 flex-shrink-0">
                 <ToggleSwitch
+                  label="Auto-advance after intro"
                   active={performance.afterStarterFinish === 'advance'}
                   onChange={(v) => {
                     setPerformance({ afterStarterFinish: v ? 'advance' : 'stop' })
@@ -267,83 +227,19 @@ export default function Settings({ currentArtistId }) {
           <ScrewDot />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-0 divide-y md:divide-y-0 md:divide-x divide-outline-variant/20">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-outline-variant/20">
 
-          {/* Export */}
+          {/* Templates — the primary path. Bulk song import is what people
+              actually come here to do; the download and the import that
+              consumes it now sit next to each other instead of on separate
+              screens with no link between them. */}
           <div className="p-5 space-y-3">
-            <p className="font-mono-digital text-[9px] tracking-[0.3em] text-outline uppercase mb-4">
-              EXPORT · BACKUP
+            <p className="font-mono-digital text-[9px] tracking-[0.3em] text-primary uppercase mb-4">
+              BULK SONG IMPORT
             </p>
             <p className="font-body text-outline text-xs">
-              Download your library as a JSON snapshot for safe-keeping or device migration.
-            </p>
-            <div className="space-y-2 pt-1">
-              {currentArtistId && (
-                <button
-                  onClick={() => handleExport(true)}
-                  className="w-full py-2.5 bg-primary text-on-primary font-label font-bold text-xs uppercase tracking-widest rounded-sm hover:brightness-110 active:scale-95 transition-all"
-                >
-                  Export Current Artist
-                </button>
-              )}
-              <button
-                onClick={() => handleExport(false)}
-                className="w-full py-2.5 bg-surface-container-high border border-outline-variant/30 text-on-surface font-label font-bold text-xs uppercase tracking-widest rounded-sm hover:bg-surface-container-highest active:scale-95 transition-all"
-              >
-                Export All Data
-              </button>
-            </div>
-          </div>
-
-          {/* Import */}
-          <div className="p-5 space-y-3">
-            <p className="font-mono-digital text-[9px] tracking-[0.3em] text-outline uppercase mb-4">
-              IMPORT · RESTORE
-            </p>
-            <p className="font-body text-outline text-xs">
-              Restore from a JSON backup. Merge adds records; Replace overwrites everything.
-            </p>
-
-            {/* Mode selector */}
-            <div className="flex gap-1 pt-1">
-              {['add', 'replace'].map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setImportMode(mode)}
-                  className={`flex-1 py-2 text-[10px] font-mono-digital uppercase tracking-widest rounded-sm transition-all border ${
-                    importMode === mode
-                      ? 'bg-primary-container text-primary border-primary/40'
-                      : 'bg-surface-container-lowest text-outline border-outline-variant/20 hover:border-outline/40'
-                  }`}
-                >
-                  {mode === 'add' ? 'Merge' : 'Replace'}
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={() => fileRef.current.click()}
-              disabled={importing}
-              className="w-full py-2.5 bg-surface-container-high border border-outline-variant/30 text-on-surface font-label font-bold text-xs uppercase tracking-widest rounded-sm hover:bg-surface-container-highest active:scale-95 transition-all disabled:opacity-40"
-            >
-              {importing ? 'Loading…' : 'Select JSON File…'}
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={(e) => e.target.files[0] && handleImportFile(e.target.files[0])}
-            />
-          </div>
-
-          {/* Templates */}
-          <div className="p-5 space-y-3">
-            <p className="font-mono-digital text-[9px] tracking-[0.3em] text-outline uppercase mb-4">
-              TEMPLATES · BULK IMPORT
-            </p>
-            <p className="font-body text-outline text-xs">
-              Download a spreadsheet template to prepare songs for bulk import via the Library.
+              Download a spreadsheet template, fill in your songs, then load it from the
+              Library — <span className="text-on-surface">Songs → Import</span>.
             </p>
             <div className="space-y-2 pt-1">
               <button
@@ -358,6 +254,91 @@ export default function Settings({ currentArtistId }) {
               >
                 CSV Template
               </button>
+            </div>
+          </div>
+
+          {/* Backup — secondary. Export is a safety net, not a daily task. */}
+          <div className="p-5 space-y-3">
+            <p className="font-mono-digital text-[9px] tracking-[0.3em] text-outline uppercase mb-4">
+              BACKUP · SNAPSHOT
+            </p>
+            <p className="font-body text-outline text-xs">
+              Download the whole library as a JSON snapshot for safe-keeping.
+            </p>
+            <div className="space-y-2 pt-1">
+              {currentArtistId && (
+                <button
+                  onClick={() => handleExport(true)}
+                  className="w-full py-2.5 bg-surface-container-high border border-outline-variant/30 text-on-surface font-label font-bold text-xs uppercase tracking-widest rounded-sm hover:bg-surface-container-highest active:scale-95 transition-all"
+                >
+                  Export Current Artist
+                </button>
+              )}
+              <button
+                onClick={() => handleExport(false)}
+                className="w-full py-2.5 bg-surface-container-high border border-outline-variant/30 text-on-surface font-label font-bold text-xs uppercase tracking-widest rounded-sm hover:bg-surface-container-highest active:scale-95 transition-all"
+              >
+                Export All Data
+              </button>
+
+              {/* Restore is buried, not removed. Burying it keeps Export from
+                  being a dead end — a backup you cannot restore is not a
+                  backup — while keeping a destructive operation off the
+                  primary surface. */}
+              <button
+                onClick={() => setShowRestore((v) => !v)}
+                className="w-full pt-2 font-mono-digital text-[9px] uppercase tracking-widest text-outline/60 hover:text-outline transition-colors flex items-center justify-center gap-1"
+              >
+                <span className="material-symbols-outlined text-xs">
+                  {showRestore ? 'expand_less' : 'expand_more'}
+                </span>
+                Advanced · Restore
+              </button>
+
+              {showRestore && (
+                <div className="space-y-2 pt-2 border-t border-outline-variant/20">
+                  <p className="font-body text-outline text-xs">
+                    Restore from a snapshot. <span className="text-on-surface">Merge</span> adds
+                    records; <span className="text-error">Replace</span> deletes the current
+                    library first.
+                  </p>
+                  <div className="flex gap-1">
+                    {['add', 'replace'].map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => setImportMode(mode)}
+                        className={`flex-1 py-2 text-[10px] font-mono-digital uppercase tracking-widest rounded-sm transition-all border ${
+                          importMode === mode
+                            ? mode === 'replace'
+                              ? 'bg-error-container/30 text-error border-error/40'
+                              : 'bg-primary-container text-primary border-primary/40'
+                            : 'bg-surface-container-lowest text-outline border-outline-variant/20 hover:border-outline/40'
+                        }`}
+                      >
+                        {mode === 'add' ? 'Merge' : 'Replace'}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => fileRef.current.click()}
+                    disabled={importing}
+                    className="w-full py-2.5 bg-surface-container-high border border-outline-variant/30 text-on-surface font-label font-bold text-xs uppercase tracking-widest rounded-sm hover:bg-surface-container-highest active:scale-95 transition-all disabled:opacity-40"
+                  >
+                    {importing ? 'Loading…' : 'Select Snapshot…'}
+                  </button>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept=".json,application/json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files[0]
+                      if (file) handleImportFile(file)
+                      e.target.value = ''
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -378,7 +359,7 @@ export default function Settings({ currentArtistId }) {
               {status === 'ok' && 'OPERATION COMPLETE'}
               {status === 'error' && 'OPERATION FAILED — CHECK LOG'}
               {status === 'exporting' && 'EXPORTING DATA...'}
-              {status === 'importing' && 'IMPORTING DATA...'}
+              {status === 'importing' && 'RESTORING DATA...'}
             </span>
           </div>
         )}
