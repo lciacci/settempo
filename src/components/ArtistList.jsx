@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, addRow } from '../db/db'
 import { useAppStore } from '../store/useAppStore'
+import { attempt, notify } from '../lib/notify'
 
 function ArtistModule({ artist, index, onSelect, onEngage }) {
   const songCount = useLiveQuery(() => db.songs.where('artistId').equals(artist.id).filter(s => !s.deletedAt).count(), [artist.id])
@@ -76,8 +77,20 @@ export default function ArtistList({ onSelect, onEngage }) {
 
   const addArtist = async () => {
     const trimmed = name.trim()
-    if (!trimmed) return
-    const id = await addRow('artists', { name: trimmed })
+    if (!trimmed) {
+      notify('MODULE DESIGNATION REQUIRED', 'error')
+      return
+    }
+
+    const { ok, result: id } = await attempt(
+      () => addRow('artists', { name: trimmed }),
+      {
+        success: `MODULE INITIALIZED · ${trimmed.toUpperCase()}`,
+        failure: 'INITIALIZE FAILED',
+      },
+    )
+    if (!ok) return
+
     setName('')
     setShowForm(false)
     setCurrentArtistId(id)
@@ -166,7 +179,7 @@ export default function ArtistList({ onSelect, onEngage }) {
               />
               <div className="flex gap-2">
                 <button
-                  onClick={() => { setShowForm(false); setName('') }}
+                  onClick={() => { setShowForm(false); setName(''); notify('INITIALIZE ABORTED') }}
                   className="flex-1 py-2 bg-surface-container-highest border border-outline-variant/20 text-outline font-mono-digital text-[10px] uppercase tracking-widest rounded-sm hover:text-on-surface transition-colors"
                 >
                   Abort

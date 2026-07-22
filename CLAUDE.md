@@ -6,7 +6,7 @@ A React 19 + Vite 7 PWA metronome and setlist manager for musicians. Local-first
 ## Stack
 - **React 19 / Vite 7** — no routing (custom nav stack in Zustand store)
 - **Tailwind v4** — custom theme, brushed-metal rack panel components
-- **Dexie.js v4** — IndexedDB ORM, version 2 schema with soft deletes + delta sync
+- **Dexie.js v4** — IndexedDB ORM, version 3 schema (UUID keys, soft deletes, delta sync)
 - **Zustand** — global state (nav stack, metronome, performance mode)
 - **Supabase** — magic link auth + Postgres backend for sync
 - **@dnd-kit** — drag-and-drop for set entry reordering
@@ -17,7 +17,7 @@ A React 19 + Vite 7 PWA metronome and setlist manager for musicians. Local-first
 ```
 src/
   App.jsx                  # Root: nav, header, tab routing, auth wiring
-  db/db.js                 # Dexie schema (v1+v2), softDelete/softDeleteWhere helpers
+  db/db.js                 # Dexie schema (v1→v3), addRow/updateRow, softDelete helpers
   store/useAppStore.js     # Zustand: navStack, metronome, performance state
   hooks/
     useMetronome.js        # Web Audio metronome engine
@@ -41,6 +41,7 @@ src/
     SetlistPicker.jsx      # Modal: pick setlist to perform
     SetlistExport.jsx      # Print/HTML export (no heavy deps, uses window.print)
     SongPicker.jsx         # Modal: add song to a set
+    OverrideModal.jsx      # Modal: per-entry BPM / time sig / notes override
     PerformanceMode.jsx    # Full-screen performance view
     Settings.jsx           # Backup/restore, performance config, templates
     AuthModal.jsx          # Magic link sign-in + Sync Now panel
@@ -49,9 +50,20 @@ src/
     icons/                 # PWA icons (generated from icon.svg)
 ```
 
-## Data Model (Dexie v2)
+## Data Model (Dexie v3)
+Primary keys are **string UUIDs** (`crypto.randomUUID()` via `createId()`), not auto-increment
+ints. Dexie no longer generates ids — every insert must go through `addRow(table, data)`.
+**A pre-v3 database is dropped, not migrated.** An in-place upgrade is impossible: IndexedDB
+forbids changing a store's primary key, so Dexie rejects the schema diff up front
+(`UpgradeError: Not yet support for changing primary key`). The v3 `.upgrade()` callback that
+was meant to remap int ids and rewrite FK columns could never run and has been removed.
+`openDb()` catches that error, calls `db.delete()`, clears both sync watermarks, and reopens
+empty — returning `{ recovered: true }` so the UI can say the local store was rebuilt rather
+than present an empty library as normal. Rows come back only from the server on the next pull,
+so **anything a device never pushed is gone.**
+
 All tables have `createdAt`, `updatedAt`, `deletedAt` (bigint ms timestamps).
-Soft deletes only — never hard delete. Filters always use `.filter(r => !r.deletedAt)`.
+Soft deletes only locally — never hard delete. Filters always use `.filter(r => !r.deletedAt)`.
 
 ```
 artists     id, name, userId, updatedAt
@@ -65,11 +77,22 @@ setlistSets id, setlistId, setId, position, isLocalCopy, updatedAt
 
 ## Sync Architecture
 - **Local-first**: Dexie is always the source of truth
-- **Delta sync**: push/pull records where `updatedAt > lastSyncedAt`
-- **lastSyncedAt**: stored in `localStorage` keyed by `settempo_lastSyncedAt_{userId}`
+- **Two watermarks per user**, both in `localStorage` — mixing them in one value let a device
+  with a fast clock persistently skip rows another device wrote:
+  - `settempo_lastPushedAt_{userId}` — **local** clock ms. Push filter: rows with
+    `updatedAt > lastPushedAt`. Snapshotted *before* the push so writes during the push
+    window land on the next pass instead of being dropped.
+  - `settempo_lastSyncedAt_{userId}` — **server** clock ms, the max `updated_at` ever seen
+    from the backend. Pull filter uses this, so clock skew can't skip or duplicate rows.
+- **Server-stamped `updated_at`**: push strips the client's value; a Postgres trigger fills
+  it from `clock_timestamp()`. The upsert's `.select()` returns the authoritative timestamp,
+  written back into Dexie so the next push filter agrees with the server.
 - **Conflict resolution**: last-write-wins by `updatedAt`
-- **Supabase schema**: composite PK `(user_id, id)` to avoid ID collisions (Dexie auto-increment starts at 1 per user)
-- **Column mapping**: camelCase (Dexie) ↔ snake_case (Supabase) via mappers in `sync.js`
+- **Deletes**: soft locally, but pull **hard-deletes** any row whose remote `deletedAt` is
+  set — the UI sees it gone and tombstones don't accumulate on the client
+- **Supabase schema**: composite PK `(user_id, id)`, kept for RLS scoping. UUID ids made it
+  no longer load-bearing for collision avoidance
+- **Column mapping**: camelCase (Dexie) ↔ snake_case (Postgres) via `mappers` in `sync.js`
 - Sync is **automatic** — `useSyncEngine` syncs on sign-in, tab focus, reconnect, and a 60s interval; "Sync Now" in AuthModal forces an immediate pass
 
 ## Auth
@@ -79,8 +102,12 @@ setlistSets id, setlistId, setId, position, isLocalCopy, updatedAt
 - Power icon appears when signed in → signs out
 
 ## Key Conventions
-- All writes include `updatedAt: Date.now()` — required for delta sync
+- Use `addRow(table, data)` for every insert — it generates the UUID and stamps
+  `createdAt`/`updatedAt`. Dexie will not assign an id for you.
+- Use `updateRow(table, id, patch)` for updates — it stamps `updatedAt`. Any hand-written
+  write must include `updatedAt: Date.now()`; delta sync misses rows without it.
 - Use `softDelete(table, id)` and `softDeleteWhere(table, index, value)` from `db/db.js` — never `.delete()`
+  (the one exception is `pull()` in `sync.js`, which hard-deletes remote tombstones)
 - DnD reorder and shuffle operations also include `updatedAt: Date.now()`
 - `null` (not `undefined`) used for unset nullable fields in pulled records
 
@@ -97,6 +124,10 @@ Self-hosted via SFTP. Build with `npm run build`, upload `dist/` contents to web
 ## Supabase Setup
 Schema in `supabase-schema.sql`. Composite PKs (`user_id, id`). RLS enabled on all tables. Redirect URLs must be set in Supabase Auth → URL Configuration (one per line).
 
+`supabase-migration-uuid.sql` converts the bigint id columns to text/uuid for the Dexie v3
+change. **It must run before any device syncs after upgrading**, or pushes fail on type
+mismatch.
+
 ## Current State (as of July 2026)
 - [x] Metronome (tap tempo, gap click, song starter, sounds, pitch)
 - [x] Song library (add, edit, grid view, import CSV/XLSX, load to metronome)
@@ -104,13 +135,32 @@ Schema in `supabase-schema.sql`. Composite PKs (`user_id, id`). RLS enabled on a
 - [x] Performance mode (full-screen, auto-advance, wake lock)
 - [x] PWA icons and installable
 - [x] Dexie v2 migration (soft deletes, updatedAt, delta sync readiness)
+- [x] Dexie v3 migration (UUID primary keys, FK remap, watermark reset)
 - [x] Magic link auth UI
-- [x] Delta sync engine (push/pull, last-write-wins)
+- [x] Delta sync engine (push/pull, last-write-wins, dual watermarks, server-stamped updated_at)
 - [x] User guide at `/guide.html`
 - [x] Auto-sync (sign-in, tab focus, reconnect, 60s interval)
 - [x] Vitest suites for Dexie helpers, sync push/pull, column mappers
 
 ## Roadmap / Next
+- **Migrate the backend off Supabase to Neon (neon.com).** Planned for the next work
+  session. Researched 2026-07-22 — Neon now covers all three jobs Supabase does here, so
+  this is a swap, not a re-architecture:
+  - **Data API** — PostgREST-compatible HTTP interface built into Neon's proxy, callable
+    straight from the browser, validates JWTs and enforces RLS. Client is
+    `@neondatabase/neon-js`, whose `createClient(...).from().select().eq()` surface matches
+    `supabase-js` closely enough that `sync.js` should need little more than an import swap
+    (verify `.upsert(rows, { onConflict })` is supported — it is the one call we lean on
+    that is not a plain select). **Beta**; enabled per-branch for a single database.
+  - **Neon Auth** — managed Better Auth, users/sessions in a `neon_auth` schema, magic-link
+    and email-OTP plugins supported first-class. Replaces `signInWithOtp` in `useAuth`.
+    Free to 60K MAU.
+  - **RLS** — policies port over, but the JWT accessor changes: `auth.uid()` →
+    `auth.user_id()` (reads the `sub` claim). Composite PK `(user_id, id)` stays valid.
+  - Data moves by dump/restore; UUID ids (Dexie v3) make that clean.
+  - Context: Neon was acquired by Databricks in May 2025.
+- `supabase-migration-uuid.sql` must be applied to the live backend before any device syncs
+  post-Dexie-v3 (status unconfirmed) — moot if the Neon migration lands first
 - Supabase Redirect URL must be configured per environment before auth works
 - Audio feedback review (users have flagged audio issues — investigate Web Audio timing)
 

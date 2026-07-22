@@ -16,6 +16,7 @@ import PerformanceMode from './components/PerformanceMode'
 import SetlistPicker from './components/SetlistPicker'
 import Settings from './components/Settings'
 import AuthModal from './components/AuthModal'
+import Toaster from './components/Toaster'
 
 const MOBILE_NAV = [
   { tab: 'Metronome', icon: 'timer', label: 'TEMPO' },
@@ -259,6 +260,8 @@ export default function App() {
           syncError={syncError}
         />
       )}
+
+      <Toaster />
     </div>
   )
 }

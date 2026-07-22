@@ -1,6 +1,45 @@
 import { create } from 'zustand'
 
+// System log retention. Long enough to read back a whole session's worth of
+// operations, short enough not to grow without bound.
+const LOG_LIMIT = 200
+
+// How many toasts can be on screen at once. Small: past this the stack stops
+// being a notification and starts being an obstruction.
+const TOAST_LIMIT = 3
+
 export const useAppStore = create((set) => ({
+  // ── System log + toasts ──────────────────────────────────────────────────
+  // One store, two surfaces. `notify()` writes a durable entry to the system
+  // log *and* raises a transient toast. The toast is the surface you can't
+  // miss; the log is the record you can go back and read. Nothing a toast
+  // says is lost when it fades.
+  //
+  // The log is stored newest-first so display order needs no reversal and
+  // trimming drops the oldest entries, which is what `slice` does naturally.
+  systemLog: [{ id: 0, level: 'info', text: 'SYSTEM READY', at: null }],
+  toasts: [],
+  logSeq: 1,
+
+  notify: (text, level = 'info') =>
+    set((state) => {
+      const entry = { id: state.logSeq, level, text, at: Date.now() }
+      return {
+        logSeq: state.logSeq + 1,
+        // The log records every occurrence — that is the point of it.
+        systemLog: [entry, ...state.systemLog].slice(0, LOG_LIMIT),
+        // The toast stack does not. Errors never auto-dismiss, and auto-sync
+        // retries every 60s, so an offline device would otherwise stack an
+        // identical toast per minute until it covered the screen. Drop any
+        // visible toast with the same text, then cap the stack. Nothing is
+        // lost: the repetition is still in the log.
+        toasts: [...state.toasts.filter((t) => t.text !== text), entry].slice(-TOAST_LIMIT),
+      }
+    }),
+
+  dismissToast: (id) =>
+    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+
   // Navigation
   currentArtistId: null,
   setCurrentArtistId: (id) => set({ currentArtistId: id }),

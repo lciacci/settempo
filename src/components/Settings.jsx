@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { db } from '../db/db'
 import { useAppStore } from '../store/useAppStore'
+import { describeError } from '../lib/notify'
 
 async function exportAllData(artistId) {
   const tables = ['artists', 'songs', 'sets', 'setEntries', 'shows', 'setlists', 'setlistSets']
@@ -108,12 +109,13 @@ export default function Settings({ currentArtistId }) {
   const [status, setStatus] = useState(null)
   const [importing, setImporting] = useState(false)
   const [importMode, setImportMode] = useState('add')
-  const [log, setLog] = useState(['> SYSTEM READY', '> SETTEMPO v2 · ANALOG PRECISION'])
   const fileRef = useRef()
 
   const { performance, setPerformance } = useAppStore()
-
-  const addLog = (msg) => setLog((prev) => [...prev.slice(-19), `> ${msg}`])
+  // The log now lives in the store and records the whole app, not just this
+  // screen. addLog stays as the local spelling so call sites read unchanged.
+  const log = useAppStore((s) => s.systemLog)
+  const addLog = useAppStore((s) => s.notify)
 
   const handleExport = async (artistOnly) => {
     addLog('EXPORT INITIATED...')
@@ -126,10 +128,10 @@ export default function Settings({ currentArtistId }) {
       a.href = URL.createObjectURL(blob)
       a.download = `settempo-backup-${new Date().toISOString().slice(0, 10)}.json`
       a.click()
-      addLog('EXPORT COMPLETE · FILE DOWNLOADED')
+      addLog('EXPORT COMPLETE · FILE DOWNLOADED', 'ok')
       setStatus('ok')
     } catch (e) {
-      addLog(`EXPORT ERROR: ${e.message}`)
+      addLog(`EXPORT FAILED · ${describeError(e)}`, 'error')
       setStatus('error')
     }
   }
@@ -142,10 +144,10 @@ export default function Settings({ currentArtistId }) {
       const text = await file.text()
       const json = JSON.parse(text)
       await importData(json, importMode)
-      addLog(`IMPORT COMPLETE · MODE=${importMode.toUpperCase()}`)
+      addLog(`IMPORT COMPLETE · MODE=${importMode.toUpperCase()}`, 'ok')
       setStatus('ok')
     } catch (e) {
-      addLog(`IMPORT ERROR: ${e.message}`)
+      addLog(`IMPORT FAILED · ${describeError(e)}`, 'error')
       setStatus('error')
     } finally {
       setImporting(false)
@@ -226,16 +228,25 @@ export default function Settings({ currentArtistId }) {
             </p>
             <div className="rack-module rounded-sm bg-surface-container-lowest flex-1 min-h-[160px] relative overflow-hidden">
               <div className="scanline-overlay absolute inset-0 pointer-events-none z-10" />
-              <div className="p-3 h-full overflow-y-auto flex flex-col-reverse">
+              {/* Newest-first, matching reading order everywhere else in the
+                  app. The store keeps the log in this order, so there is no
+                  reversal here — the previous bottom-anchored rendering was a
+                  flex-col-reverse on a single child, which only pinned the
+                  block to the bottom without ordering anything. */}
+              <div className="p-3 h-full overflow-y-auto">
                 <div className="space-y-0.5">
-                  {log.map((line, i) => (
+                  {log.map((entry, i) => (
                     <p
-                      key={i}
+                      key={entry.id}
                       className={`font-mono text-[10px] leading-relaxed system-log-glow ${
-                        i === log.length - 1 ? 'text-secondary' : 'text-outline/60'
+                        entry.level === 'error'
+                          ? 'text-error'
+                          : i === 0
+                            ? 'text-secondary'
+                            : 'text-outline/60'
                       }`}
                     >
-                      {line}
+                      &gt; {entry.text}
                     </p>
                   ))}
                 </div>

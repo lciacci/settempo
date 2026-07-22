@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, addRow, softDelete, softDeleteWhere } from '../db/db'
+import { attempt } from '../lib/notify'
 import { useAppStore } from '../store/useAppStore'
 
 function SetRow({ set, index, onOpen, onDelete }) {
@@ -61,7 +62,11 @@ export default function SetLibrary({ artistId }) {
   const addSet = async () => {
     const trimmed = name.trim()
     if (!trimmed) return
-    const id = await addRow('sets', { artistId, name: trimmed })
+    const { ok, result: id } = await attempt(
+      () => addRow('sets', { artistId, name: trimmed }),
+      { success: `SET CREATED · ${trimmed.toUpperCase()}`, failure: 'CREATE SET FAILED' },
+    )
+    if (!ok) return
     setName('')
     setShowForm(false)
     pushView('set-editor', { setId: id })

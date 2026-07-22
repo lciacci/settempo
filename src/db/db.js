@@ -1,6 +1,8 @@
 import Dexie from 'dexie'
 
-export const db = new Dexie('SetTempo')
+export const DB_NAME = 'SetTempo'
+
+export const db = new Dexie(DB_NAME)
 
 db.version(1).stores({
   artists:     '++id, name',
@@ -34,19 +36,17 @@ db.version(2).stores({
 // ── v3: switch primary keys from int (++id) to string (UUID). ──────────────
 // Per-device Dexie auto-increment caused (user_id, id) collisions across
 // devices on the Supabase side — phone's artist 1 overwrote laptop's artist 1.
-// UUIDs make IDs globally unique. The upgrade remaps existing rows and
-// rewrites every foreign-key column so local data survives the change.
-
-const FK_MAP = {
-  songs:       { artistId: 'artists' },
-  sets:        { artistId: 'artists' },
-  setEntries:  { setId: 'sets', songId: 'songs' },
-  shows:       { artistId: 'artists' },
-  setlists:    { showId: 'shows' },
-  setlistSets: { setlistId: 'setlists', setId: 'sets' },
-}
-
-const TABLE_NAMES = ['artists', 'songs', 'sets', 'setEntries', 'shows', 'setlists', 'setlistSets']
+// UUIDs make IDs globally unique.
+//
+// This version originally shipped with an .upgrade() callback that remapped
+// int ids to UUIDs and rewrote every FK column. That callback could never
+// run: IndexedDB forbids changing a store's primary key, and Dexie rejects
+// the schema diff up front with `UpgradeError: Not yet support for changing
+// primary key`. On any browser holding a v1/v2 database the open failed, the
+// Dexie instance stayed closed, and every later call rejected with
+// DatabaseClosedError — silently, because nothing caught it. The dead
+// callback has been removed so it stops reading like a working migration;
+// openDb() below handles the failure it caused.
 
 export const createId = () => crypto.randomUUID()
 
@@ -58,52 +58,52 @@ db.version(3).stores({
   shows:       'id, artistId, name, date, updatedAt',
   setlists:    'id, showId, name, updatedAt',
   setlistSets: 'id, setlistId, setId, position, updatedAt',
-}).upgrade(async (tx) => {
-  // Build oldIntId → newUuid map per table.
-  const idMap = {}
-  for (const name of TABLE_NAMES) {
-    idMap[name] = new Map()
-    const rows = await tx.table(name).toArray()
-    for (const r of rows) {
-      idMap[name].set(r.id, createId())
-    }
-  }
+})
 
-  // Rewrite each table: remap primary key + remap FK columns.
-  for (const name of TABLE_NAMES) {
-    const table = tx.table(name)
-    const rows = await table.toArray()
-    await table.clear()
-    const fks = FK_MAP[name] || {}
-    for (const r of rows) {
-      const next = { ...r, id: idMap[name].get(r.id) }
-      for (const [col, refTable] of Object.entries(fks)) {
-        const old = r[col]
-        if (old != null) {
-          const mapped = idMap[refTable]?.get(old)
-          if (mapped) next[col] = mapped
-        }
-      }
-      await table.put(next)
-    }
-  }
+// ── Open with recovery ────────────────────────────────────────────────────
+// A pre-v3 database cannot be migrated in place (see above), so the only way
+// forward on an affected device is to drop it and start clean. That is not a
+// data-loss decision so much as an acknowledgement: the rows are already
+// unreachable, because the database they live in will not open.
+//
+// Callers get { recovered } so the UI can tell the user their local store was
+// rebuilt rather than silently presenting an empty library as normal.
 
-  // Old int IDs are gone on the client; remote still has bigint rows.
-  // Reset the sync watermark so the next sync re-uploads everything under
-  // its new UUID. The Supabase migration must run before any device syncs
-  // post-upgrade (see supabase-migration-uuid.sql).
+const WATERMARK_PREFIXES = ['settempo_lastSyncedAt_', 'settempo_lastPushedAt_']
+
+export function clearSyncWatermarks() {
   try {
-    const keys = Object.keys(localStorage)
-    for (const k of keys) {
-      if (k.startsWith('settempo_lastSyncedAt_') || k.startsWith('settempo_lastPushedAt_')) {
-        localStorage.removeItem(k)
-      }
+    for (const k of Object.keys(localStorage)) {
+      if (WATERMARK_PREFIXES.some((p) => k.startsWith(p))) localStorage.removeItem(k)
     }
   } catch {
     // localStorage may be unavailable in some private-mode contexts; the
-    // sync watermark is best-effort cleanup, not load-bearing.
+    // watermark reset is best-effort cleanup, not load-bearing.
   }
-})
+}
+
+// Failures that mean "the stored database is incompatible with this schema."
+// Anything else (quota, blocked by another tab, corruption) is rethrown —
+// wiping the user's data on an unrecognised error would be the wrong reflex.
+const isUnrecoverableSchemaError = (err) =>
+  err?.name === 'UpgradeError' || err?.name === 'VersionError'
+
+export async function openDb() {
+  try {
+    await db.open()
+    return { recovered: false }
+  } catch (err) {
+    if (!isUnrecoverableSchemaError(err)) throw err
+
+    db.close()
+    await db.delete()
+    // The stale watermarks would otherwise suppress the re-push of everything
+    // the rebuilt (empty) store goes on to accumulate.
+    clearSyncWatermarks()
+    await db.open()
+    return { recovered: true, reason: err.message }
+  }
+}
 
 // ── Insert / update helpers ───────────────────────────────────────────────
 // All inserts must go through addRow so id, createdAt, and updatedAt are

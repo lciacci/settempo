@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, addRow, softDelete, softDeleteWhere } from '../db/db'
+import { attempt } from '../lib/notify'
 import { useAppStore } from '../store/useAppStore'
 
 function SetlistRow({ setlist, onOpen, onDelete }) {
@@ -48,8 +49,13 @@ export default function ShowDetail({ showId }) {
   const [showForm, setShowForm] = useState(false)
 
   const addSetlist = async () => {
-    if (!name.trim()) return
-    const id = await addRow('setlists', { showId, name: name.trim() })
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const { ok, result: id } = await attempt(
+      () => addRow('setlists', { showId, name: trimmed }),
+      { success: `SETLIST ADDED · ${trimmed.toUpperCase()}`, failure: 'ADD SETLIST FAILED' },
+    )
+    if (!ok) return
     setName('')
     setShowForm(false)
     pushView('setlist-detail', { setlistId: id })
