@@ -4,11 +4,11 @@ import { db, addRow } from '../db/db'
 import { useAppStore } from '../store/useAppStore'
 import { attempt, notify } from '../lib/notify'
 
-function ArtistModule({ artist, index, onSelect, onEngage }) {
+function ArtistCard({ artist, index, onSelect, onEngage }) {
   const songCount = useLiveQuery(() => db.songs.where('artistId').equals(artist.id).filter(s => !s.deletedAt).count(), [artist.id])
   const setCount = useLiveQuery(() => db.sets.where('artistId').equals(artist.id).filter(s => !s.deletedAt).count(), [artist.id])
 
-  const moduleNum = String(index + 1).padStart(2, '0')
+  const slotNum = String(index + 1).padStart(2, '0')
   const slugName = artist.name.replace(/\s+/g, '_').toUpperCase()
 
   return (
@@ -21,7 +21,7 @@ function ArtistModule({ artist, index, onSelect, onEngage }) {
         <div className="bg-surface-container-lowest rounded p-4 flex-1 border border-outline-variant/30 relative overflow-hidden crt-glow min-w-0">
           <div className="scanline-overlay absolute inset-0 opacity-20 pointer-events-none" />
           <div className="relative z-10">
-            <p className="font-mono-digital text-[9px] text-primary/70 tracking-widest uppercase mb-1">Module_{moduleNum}</p>
+            <p className="font-mono-digital text-[9px] text-primary/70 tracking-widest uppercase mb-1">Slot_{slotNum}</p>
             <h3 className="font-headline text-xl md:text-2xl font-black text-primary leading-none mb-1 tracking-tight truncate">
               {slugName}
             </h3>
@@ -55,7 +55,7 @@ function ArtistModule({ artist, index, onSelect, onEngage }) {
             play_arrow
           </span>
           <span className="font-label text-[10px] font-black tracking-[0.2em] text-on-surface group-hover/btn:text-on-primary uppercase">
-            Engage Set
+            Engage Setlist
           </span>
         </button>
         <button
@@ -78,14 +78,14 @@ export default function ArtistList({ onSelect, onEngage }) {
   const addArtist = async () => {
     const trimmed = name.trim()
     if (!trimmed) {
-      notify('MODULE DESIGNATION REQUIRED', 'error')
+      notify('ARTIST NAME REQUIRED', 'error')
       return
     }
 
     const { ok, result: id } = await attempt(
       () => addRow('artists', { name: trimmed }),
       {
-        success: `MODULE INITIALIZED · ${trimmed.toUpperCase()}`,
+        success: `ARTIST INITIALIZED · ${trimmed.toUpperCase()}`,
         failure: 'INITIALIZE FAILED',
       },
     )
@@ -97,7 +97,7 @@ export default function ArtistList({ onSelect, onEngage }) {
     onSelect?.(id)
   }
 
-  const totalModules = (artists?.length ?? 0) + 2
+  const totalSlots = (artists?.length ?? 0) + 2
   const showEmptySlot = (artists?.length ?? 0) % 2 === 1
 
   return (
@@ -126,10 +126,10 @@ export default function ArtistList({ onSelect, onEngage }) {
           </div>
         </div>
 
-        {/* Module grid */}
+        {/* Artist grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
           {artists?.map((artist, i) => (
-            <ArtistModule
+            <ArtistCard
               key={artist.id}
               artist={artist}
               index={i}
@@ -143,9 +143,9 @@ export default function ArtistList({ onSelect, onEngage }) {
             <div className="hidden md:flex bg-surface-container-low/50 p-6 rounded-lg border border-dashed border-outline-variant/30 module-card-shadow grayscale opacity-40 items-center justify-center h-48">
               <div className="text-center">
                 <p className="font-mono-digital text-[9px] text-outline uppercase tracking-[0.4em] font-black mb-2">
-                  Module_{String((artists?.length ?? 0) + 1).padStart(2, '0')}
+                  Slot_{String((artists?.length ?? 0) + 1).padStart(2, '0')}
                 </p>
-                <p className="font-headline text-lg font-bold text-outline-variant uppercase">Archive Slot Empty</p>
+                <p className="font-headline text-lg font-bold text-outline-variant uppercase">Artist Slot Empty</p>
               </div>
             </div>
           )}
@@ -160,13 +160,13 @@ export default function ArtistList({ onSelect, onEngage }) {
                 <span className="material-symbols-outlined text-primary group-hover:text-on-primary text-4xl">add</span>
               </div>
               <p className="font-mono-digital text-[9px] font-black tracking-[0.5em] text-outline group-hover:text-primary uppercase transition-colors">
-                Initialize New Module
+                Initialize New Artist
               </p>
             </button>
           ) : (
             <div className="h-48 bg-surface-container-high border-2 border-primary/30 rounded-lg p-5 flex flex-col justify-center gap-4 module-card-shadow">
               <p className="font-mono-digital text-[9px] tracking-[0.3em] text-outline uppercase">
-                MODULE DESIGNATION
+                ARTIST NAME
               </p>
               <input
                 autoFocus
@@ -206,7 +206,7 @@ export default function ArtistList({ onSelect, onEngage }) {
             </div>
             <div className="w-px h-4 bg-white/10" />
             <span className="font-mono-digital text-[9px] md:text-[10px] font-bold uppercase tracking-[0.2em] text-outline">
-              Active Modules: {String(artists?.length ?? 0).padStart(2, '0')}/{String(Math.max(32, totalModules)).padStart(2, '0')}
+              Active Artists: {String(artists?.length ?? 0).padStart(2, '0')}/{String(Math.max(32, totalSlots)).padStart(2, '0')}
             </span>
           </div>
         </div>

@@ -2,7 +2,7 @@ import { useRef, useCallback, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useAppStore } from '../store/useAppStore'
 import { useMetronome } from '../hooks/useMetronome'
-import { db } from '../db/db'
+import { db, markPlayed } from '../db/db'
 
 const TIME_SIG_PRESETS = [
   { label: '4/4', n: 4, d: 4 },
@@ -21,7 +21,7 @@ function ScrewHead({ className = '' }) {
 }
 
 export default function Metronome({ songStarterConfig, onStarterDone }) {
-  const { metronome, setMetronome, performance: perfState, setPerformance } = useAppStore()
+  const { metronome, setMetronome, performance: perfState, setPerformance, currentArtistId } = useAppStore()
   const { start, stop, toggle } = useMetronome()
 
   const {
@@ -37,10 +37,19 @@ export default function Metronome({ songStarterConfig, onStarterDone }) {
     ? Math.max(0, starterBarCount - currentBar)
     : null
 
-  const recentSongs = useLiveQuery(
-    () => db.songs.orderBy('id').reverse().limit(4).toArray(),
-    []
-  )
+  // Sorted by lastPlayedAt, not by id. `orderBy('id').reverse()` was correct
+  // while ids were auto-incrementing integers, but ids are UUIDs now — that
+  // was sorting by a random string, so this panel had been showing four
+  // arbitrary songs rather than recent ones. Songs never played are excluded
+  // rather than padding the list with unplayed entries.
+  const recentSongs = useLiveQuery(async () => {
+    if (!currentArtistId) return []
+    const songs = await db.songs
+      .where('artistId').equals(currentArtistId)
+      .filter((s) => !s.deletedAt && s.lastPlayedAt)
+      .toArray()
+    return songs.sort((a, b) => b.lastPlayedAt - a.lastPlayedAt).slice(0, 4)
+  }, [currentArtistId])
 
   // Tap tempo
   const tapTimesRef = useRef([])
@@ -567,11 +576,18 @@ export default function Metronome({ songStarterConfig, onStarterDone }) {
               {recentSongs.map((song) => (
                 <div
                   key={song.id}
-                  onClick={() => setMetronome({
-                    bpm: song.bpm ?? bpm,
-                    timeSignatureNumerator: song.timeSignatureNumerator ?? timeSignatureNumerator,
-                    timeSignatureDenominator: song.timeSignatureDenominator ?? timeSignatureDenominator,
-                  })}
+                  onClick={() => {
+                    // Was reading song.timeSignatureNumerator / …Denominator,
+                    // which do not exist on the record — the fields are
+                    // timeSigN / timeSigD. Every load silently fell through to
+                    // the current signature instead of the song's.
+                    setMetronome({
+                      bpm: song.bpm ?? bpm,
+                      timeSignatureNumerator: song.timeSigN ?? timeSignatureNumerator,
+                      timeSignatureDenominator: song.timeSigD ?? timeSignatureDenominator,
+                    })
+                    markPlayed(song.id)
+                  }}
                   className="bg-surface-container-lowest p-3 md:p-4 rounded-sm flex items-center gap-3 md:gap-4 hover:bg-surface-container-high transition-colors cursor-pointer rack-module"
                 >
                   <div className="w-10 h-10 md:w-12 md:h-12 bg-surface-container-high rounded-sm flex items-center justify-center border border-white/5 shadow-inner flex-shrink-0">
@@ -580,7 +596,7 @@ export default function Metronome({ songStarterConfig, onStarterDone }) {
                   <div className="min-w-0">
                     <div className="text-[10px] md:text-[11px] font-bold text-on-surface font-mono-digital truncate uppercase">{song.title}</div>
                     <div className="text-[9px] text-on-surface-variant font-mono-digital">
-                      {song.bpm ? `${song.bpm} BPM` : '– BPM'} / {song.timeSignatureNumerator ?? 4}-{song.timeSignatureDenominator ?? 4}
+                      {song.bpm ? `${song.bpm} BPM` : '– BPM'} / {song.timeSigN ?? 4}-{song.timeSigD ?? 4}
                     </div>
                   </div>
                 </div>

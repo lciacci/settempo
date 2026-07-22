@@ -131,6 +131,20 @@ export async function updateRow(table, id, patch) {
   return db[table].update(id, { ...patch, updatedAt: ts() })
 }
 
+// Records that a song was loaded into the metronome, for the Recent Sessions
+// panel. Deliberately does NOT go through updateRow: `lastPlayedAt` is a
+// local UI convenience, not library data.
+//
+//   - It is absent from the sync mappers, so it never reaches the backend.
+//   - It must not bump `updatedAt`, or every song loaded during a gig would
+//     queue a sync push — thirty songs, thirty pushes, for a sort order.
+//
+// It is also unindexed, so Recent Sessions sorts in JS rather than requiring
+// a Dexie version bump. Given what the last schema change cost, an index for
+// a four-item list is not a trade worth making.
+export const markPlayed = (songId) =>
+  db.songs.update(songId, { lastPlayedAt: ts() })
+
 // ── Soft delete helpers ───────────────────────────────────────────────────────
 // Use these instead of .delete() so changes are trackable for sync
 

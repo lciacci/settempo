@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, addRow, softDelete, softDeleteWhere } from '../db/db'
+import { db, addRow, markPlayed, softDelete, softDeleteWhere } from '../db/db'
 import { useAppStore } from '../store/useAppStore'
 import SongGridView from './SongGridView'
 import SongImport from './SongImport'
@@ -295,7 +295,7 @@ export default function SongLibrary({ artistId, onLoadSong }) {
                 index={i}
                 onEdit={() => openEdit(song)}
                 onDelete={() => deleteSong(song)}
-                onLoad={() => { setMetronome({ bpm: song.bpm, timeSignatureNumerator: song.timeSigN, timeSignatureDenominator: song.timeSigD }); onLoadSong?.() }}
+                onLoad={() => { setMetronome({ bpm: song.bpm, timeSignatureNumerator: song.timeSigN, timeSignatureDenominator: song.timeSigD }); markPlayed(song.id); onLoadSong?.() }}
               />
             ))}
           </ul>
