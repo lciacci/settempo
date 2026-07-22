@@ -162,7 +162,19 @@ mismatch.
 - `supabase-migration-uuid.sql` must be applied to the live backend before any device syncs
   post-Dexie-v3 (status unconfirmed) — moot if the Neon migration lands first
 - Supabase Redirect URL must be configured per environment before auth works
-- Audio feedback review (users have flagged audio issues — investigate Web Audio timing)
+- Audio: shared AudioContext + awaited resume shipped 2026-07-22, plus a system-log diagnostic
+  on start. Not confirmed as the reported bug — not reproducible on available hardware. The
+  next user report should carry a `METRONOME START · …` log line naming the cause.
+- **Deferred, agreed but not scheduled:**
+  - *Performance-mode entry from the metronome screen.* A setlist selector on the metronome
+    front panel that opens `SetlistPicker` and drops straight into Performance Mode — a
+    shortcut into the existing flow, **not** a second player. `SetlistPicker` and
+    `enterPerformance` (App.jsx) already exist; this is wiring.
+  - *Settings persistence.* The Zustand store has no `persist` middleware, so performance
+    toggles, bpm, sound, pitch and volume all reset on page reload. They survive navigation
+    because the store is in memory, which is why it reads as working. Device-local
+    (localStorage), not synced.
+
 
 ---
 
