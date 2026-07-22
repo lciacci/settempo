@@ -68,10 +68,26 @@ Auth covers magic link natively.
 given managed Better Auth exists; would also mean owning JWT issuance and
 JWKS rotation.
 
+## Verified 2026-07-22
+
+- **`.upsert(rows, { onConflict })` is supported.** This was the open risk.
+  `@neondatabase/postgrest-js` vendors `@supabase/postgrest-js`, so the query
+  builder is the same library with an identical signature (`onConflict`,
+  `ignoreDuplicates`, `count`, `defaultToNull`). `sync.js` needs an import and
+  client swap, not a rewrite.
+- **No credential reaches the browser.** `createClient()` takes a single
+  public URL (`VITE_NEON_DATABASE_URL`) and derives the Auth and Data API
+  endpoints from it. The session JWT is attached to every request
+  automatically, which is what RLS scopes on.
+- Neon's own agent onboarding proposes `@neondatabase/serverless` plus a
+  `DATABASE_URL` in the environment. **That path is wrong for this app** and
+  was deliberately rejected: SetTempo is a static PWA with no server tier, so
+  there is nowhere safe to hold a connection string. Declared instead in
+  `neon.ts` via `@neon/config` (`auth: true`, `dataApi: true`).
+- Project: `delicate-snow-15340889` in org `org-dry-mode-76698079`, pg 18,
+  aws-us-east-2. A duplicate project created during onboarding was deleted.
+
 ## Re-evaluate if
 
 - The Data API leaves Beta with breaking changes, or stays Beta past the point
   of comfort
-- `sync.js` needs more than an import swap — specifically if
-  `.upsert(rows, { onConflict })` is unsupported, which is the one call the
-  sync layer leans on that is not a plain select
