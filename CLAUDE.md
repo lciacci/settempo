@@ -1,14 +1,14 @@
 # SetTempo — Claude Context
 
 ## What This Is
-A React 19 + Vite 7 PWA metronome and setlist manager for musicians. Local-first (IndexedDB via Dexie), optional Supabase sync, Analog Precision aesthetic (dark rack-equipment UI with amber accents).
+A React 19 + Vite 7 PWA metronome and setlist manager for musicians. Local-first (IndexedDB via Dexie), optional Neon sync, Analog Precision aesthetic (dark rack-equipment UI with amber accents).
 
 ## Stack
 - **React 19 / Vite 7** — no routing (custom nav stack in Zustand store)
 - **Tailwind v4** — custom theme, brushed-metal rack panel components
 - **Dexie.js v4** — IndexedDB ORM, version 3 schema (UUID keys, soft deletes, delta sync)
 - **Zustand** — global state (nav stack, metronome, performance mode)
-- **Supabase** — magic link auth + Postgres backend for sync
+- **Neon** — Email-OTP auth (Neon Auth / Better Auth) + Postgres Data API for sync
 - **@dnd-kit** — drag-and-drop for set entry reordering
 - **xlsx** — lazy-loaded (dynamic import) for CSV/XLSX song import
 - **vite-plugin-pwa** — service worker, offline support, installable
@@ -22,10 +22,10 @@ src/
   hooks/
     useMetronome.js        # Web Audio metronome engine
     useWakeLock.js         # Screen wake lock for performance mode
-    useAuth.js             # Supabase session state, signIn, signOut
+    useAuth.js             # Neon Auth session state, sendCode/verifyCode, signOut
     useSyncEngine.js       # Sync state wrapper (idle/syncing/done/error)
   lib/
-    supabase.js            # Supabase client (reads VITE_SUPABASE_* env vars)
+    neon.js                # Neon client (reads VITE_NEON_* env vars)
     sync.js                # push/pull delta sync logic, camelCase↔snake_case mappers
   components/
     Metronome.jsx          # Main metronome UI (tap tempo, time sig, gap click, starter)
@@ -44,7 +44,7 @@ src/
     OverrideModal.jsx      # Modal: per-entry BPM / time sig / notes override
     PerformanceMode.jsx    # Full-screen performance view
     Settings.jsx           # Backup/restore, performance config, templates
-    AuthModal.jsx          # Magic link sign-in + Sync Now panel
+    AuthModal.jsx          # Email-OTP sign-in (email → code) + Sync Now panel
   public/
     guide.html             # User guide (standalone HTML, served at /guide.html)
     icons/                 # PWA icons (generated from icon.svg)
@@ -90,14 +90,25 @@ setlistSets id, setlistId, setId, position, isLocalCopy, updatedAt
 - **Conflict resolution**: last-write-wins by `updatedAt`
 - **Deletes**: soft locally, but pull **hard-deletes** any row whose remote `deletedAt` is
   set — the UI sees it gone and tombstones don't accumulate on the client
-- **Supabase schema**: composite PK `(user_id, id)`, kept for RLS scoping. UUID ids made it
+- **Empty-table recovery**: `pull()` ignores the watermark and fetches a table from 0 when it
+  holds no local rows. A wiped IndexedDB keeps its localStorage watermark (iOS Safari evicts a
+  PWA's IndexedDB after ~7 days idle but can keep localStorage), which would otherwise make an
+  empty library look "already synced" and pull nothing
+- **Account scoping**: `ensureUserScope()` (called at the top of `runSync`) clears the local
+  store when a *different* account signs in — Dexie has no `user_id` column, so one store holds
+  one account. Handled on sign-in, not sign-out, so an unpushed offline edit isn't destroyed
+- **Neon schema**: composite PK `(user_id, id)`, kept for RLS scoping. UUID ids made it
   no longer load-bearing for collision avoidance
 - **Column mapping**: camelCase (Dexie) ↔ snake_case (Postgres) via `mappers` in `sync.js`
 - Sync is **automatic** — `useSyncEngine` syncs on sign-in, tab focus, reconnect, and a 60s interval; "Sync Now" in AuthModal forces an immediate pass
 
 ## Auth
-- Magic link (passwordless) via Supabase `signInWithOtp`
-- `useAuth` hook: `getSession()` + `onAuthStateChange` subscription
+- **Email OTP** (passwordless) via Neon Auth / Better Auth — not magic link. A magic-link
+  redirect is handed to Safari rather than the installed standalone PWA, leaving the
+  home-screen app signed out; a typed code never leaves the app. See ADR-0002.
+- `useAuth` hook exposes `sendCode(email)` / `verifyCode(email, otp)` / `signOut()`. Session is
+  read via `neon.auth.getSession()` at mount and on `visibilitychange` — OTP is an in-app
+  transition, so there's no redirect event to subscribe to.
 - Sensors icon in header → opens AuthModal; amber LED dot when signed in
 - Power icon appears when signed in → signs out
 
@@ -113,20 +124,34 @@ setlistSets id, setlistId, setId, position, isLocalCopy, updatedAt
 
 ## Environment
 ```
-VITE_SUPABASE_URL=...
-VITE_SUPABASE_ANON_KEY=...
+VITE_NEON_AUTH_URL=...        # NEON_AUTH_BASE_URL from `neon env pull`
+VITE_NEON_DATA_API_URL=...    # NEON_DATA_API_URL from `neon env pull`
 ```
-`.env` is gitignored. `.env.example` committed as reference. Vite bakes these into the bundle at build time — must be present locally before `npm run build`.
+Both are **public** — the Data API validates the session JWT the client attaches and RLS scopes
+per user; nothing secret is in the bundle. `neon env pull` writes unprefixed `DATABASE_URL` /
+`NEON_*` vars too — leave those unprefixed so Vite can't bake a Postgres credential in. `.env`
+is gitignored; `.env.example` is committed as reference. Vite bakes the `VITE_*` vars at build
+time — they must be present before `npm run build`.
 
 ## Deploy
-Self-hosted via SFTP. Build with `npm run build`, upload `dist/` contents to web root. Nginx needs `try_files $uri $uri/ /index.html` for SPA routing.
+Self-hosted via SFTP. Build with `npm run build`, upload `dist/` contents to web root. Nginx
+needs `try_files $uri $uri/ /index.html` for SPA routing. **Cache headers matter**: `sw.js` and
+`index.html` must be served `no-cache` or returning users keep the old service worker and never
+see the new build; hashed `assets/*` can cache forever.
 
-## Supabase Setup
-Schema in `supabase-schema.sql`. Composite PKs (`user_id, id`). RLS enabled on all tables. Redirect URLs must be set in Supabase Auth → URL Configuration (one per line).
-
-`supabase-migration-uuid.sql` converts the bigint id columns to text/uuid for the Dexie v3
-change. **It must run before any device syncs after upgrading**, or pushes fail on type
-mismatch.
+## Neon Setup
+Infrastructure is declared in `neon.ts` (`@neon/config`: `auth: true`, `dataApi: true`) and
+applied with `neon config apply`. Schema in `neon-schema.sql` — run with
+`neon psql --role-name neondb_owner -- -f neon-schema.sql`. Key differences from a stock
+Postgres/Supabase schema, each a silent failure if missed:
+- `user_id` is **text** (holds the JWT `sub`), and policies use `auth.user_id()`, not
+  `auth.uid()` (which returns uuid). No FK to any users table.
+- `authenticated` needs explicit `GRANT`s; RLS is also `FORCE`d, so even the table owner needs a
+  JWT context to read (admin `psql` sees zero rows without one — not data loss).
+- **Email OTP delivery** needs a real SMTP provider. Neon's shared sender doesn't reliably
+  deliver; configure Resend (or similar) in Console → Auth → Email provider (username is the
+  literal `resend`, password is the API key). Sandbox senders only deliver to the account's own
+  address — verify a domain (DKIM/SPF) before real users.
 
 ## Current State (as of July 2026)
 - [x] Metronome (tap tempo, gap click, song starter, sounds, pitch)
@@ -135,33 +160,23 @@ mismatch.
 - [x] Performance mode (full-screen, auto-advance, wake lock)
 - [x] PWA icons and installable
 - [x] Dexie v2 migration (soft deletes, updatedAt, delta sync readiness)
-- [x] Dexie v3 migration (UUID primary keys, FK remap, watermark reset)
-- [x] Magic link auth UI
+- [x] Dexie v3 migration (UUID primary keys) + `openDb()` recovery for the un-migratable upgrade
+- [x] Email-OTP auth via Neon Auth (AuthModal code-entry step)
 - [x] Delta sync engine (push/pull, last-write-wins, dual watermarks, server-stamped updated_at)
+- [x] Backend on Neon (Data API + Neon Auth), migrated off Supabase 2026-07-22 — verified end to end
+- [x] App-wide feedback layer (system log + toasts, classified errors)
 - [x] User guide at `/guide.html`
-- [x] Auto-sync (sign-in, tab focus, reconnect, 60s interval)
-- [x] Vitest suites for Dexie helpers, sync push/pull, column mappers
+- [x] Auto-sync (sign-in, tab focus, reconnect, 60s interval) + empty-table recovery
+- [x] Vitest suites for Dexie helpers/recovery, sync push/pull/scope, backup, notify, mappers
 
 ## Roadmap / Next
-- **Migrate the backend off Supabase to Neon (neon.com).** Planned for the next work
-  session. Researched 2026-07-22 — Neon now covers all three jobs Supabase does here, so
-  this is a swap, not a re-architecture:
-  - **Data API** — PostgREST-compatible HTTP interface built into Neon's proxy, callable
-    straight from the browser, validates JWTs and enforces RLS. Client is
-    `@neondatabase/neon-js`, whose `createClient(...).from().select().eq()` surface matches
-    `supabase-js` closely enough that `sync.js` should need little more than an import swap
-    (verify `.upsert(rows, { onConflict })` is supported — it is the one call we lean on
-    that is not a plain select). **Beta**; enabled per-branch for a single database.
-  - **Neon Auth** — managed Better Auth, users/sessions in a `neon_auth` schema, magic-link
-    and email-OTP plugins supported first-class. Replaces `signInWithOtp` in `useAuth`.
-    Free to 60K MAU.
-  - **RLS** — policies port over, but the JWT accessor changes: `auth.uid()` →
-    `auth.user_id()` (reads the `sub` claim). Composite PK `(user_id, id)` stays valid.
-  - Data moves by dump/restore; UUID ids (Dexie v3) make that clean.
-  - Context: Neon was acquired by Databricks in May 2025.
-- `supabase-migration-uuid.sql` must be applied to the live backend before any device syncs
-  post-Dexie-v3 (status unconfirmed) — moot if the Neon migration lands first
-- Supabase Redirect URL must be configured per environment before auth works
+- **Deploy the Neon build to production.** The migration is complete and verified on localhost,
+  but `houseofyeti.com/settempo` still serves the old Supabase build. Deploy needs: `VITE_NEON_*`
+  present at build time, rebuild + upload `dist/`, and the `sw.js` no-cache header (see Deploy)
+  or returning users keep the old app. Data API is still **Beta** (see ADR-0002).
+- **Verify a sender domain in Resend (DKIM/SPF) before real users.** The sandbox sender only
+  delivers OTP codes to the Resend account's own address; real users at arbitrary emails need a
+  verified domain.
 - Audio: shared AudioContext + awaited resume shipped 2026-07-22, plus a system-log diagnostic
   on start. Not confirmed as the reported bug — not reproducible on available hardware. The
   next user report should carry a `METRONOME START · …` log line naming the cause.

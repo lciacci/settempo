@@ -12,7 +12,7 @@ import { notify } from './notify'
 //                  the local-changed-since check.
 //
 //   lastSyncedAt   server clock ms — max updated_at we've ever seen come
-//                  back from Supabase. Pull filter uses this so cross-device
+//                  back from the backend. Pull filter uses this so cross-device
 //                  clock skew can't make us miss or duplicate rows.
 //
 // The previous single-watermark design mixed both, so a phone with a clock

@@ -269,39 +269,27 @@ The orange **▶ Perform** button in the header opens `SetlistPicker`, then laun
 
 ---
 
-## Future: Accounts & Cloud Sync
+## Accounts & Cloud Sync (built)
 
-Currently all data lives in the browser's IndexedDB on each device. Data does not sync between devices — the JSON export/import in Settings is the manual workaround.
+Optional cross-device sync is implemented and local-first: IndexedDB stays the source of truth
+on every device, and an authenticated user's whole library syncs in the background. Signed out,
+the app is unchanged and fully offline; the JSON backup in Settings remains as a manual export.
 
-### When to add accounts
-Add accounts when users consistently need their data on multiple devices simultaneously and the export/import workflow becomes too painful.
+- **Backend: Neon** — Postgres reached from the browser through the PostgREST-compatible Data
+  API (`@neondatabase/neon-js`), with RLS scoping every row to `auth.user_id()`. Migrated off
+  an earlier Supabase implementation 2026-07-22 (see `docs/adr/0002-migrate-backend-to-neon.md`).
+- **Auth: Neon Auth (Better Auth), Email OTP** — passwordless code entry, chosen over magic link
+  because a link redirect lands in Safari rather than the installed PWA (ADR-0002).
+- **Sync engine (`src/lib/sync.js`)** — delta push/pull keyed on `updatedAt`, last-write-wins on
+  a server-stamped timestamp, dual watermarks (local push clock vs. server pull clock) to
+  survive device clock skew. `useSyncEngine` fires on sign-in, tab focus, reconnect, and a 60s
+  idle interval; "Sync Now" in the account panel forces a pass.
+- **Resilience** — `ensureUserScope()` clears the local store when a different account signs in;
+  `pull()` re-fetches a table from scratch when it is locally empty, so a wiped-but-watermarked
+  IndexedDB (e.g. iOS Safari PWA eviction) still restores.
 
-### Recommended approach: Supabase
-
-[Supabase](https://supabase.com) is the lowest-friction path given the existing stack:
-- Postgres database (data model maps directly to existing tables)
-- Built-in auth (email/password, magic link, OAuth via Google/Apple)
-- JavaScript client that works alongside or replaces Dexie
-- Generous free tier
-
-### What to build
-
-1. **Auth layer** — signup/login UI, session management via Supabase JS client
-2. **Server-side schema** — mirror the existing IndexedDB tables in Postgres, scoped by `user_id`
-3. **Sync strategy** — two options:
-   - *Replace local*: drop Dexie entirely, query Supabase directly (requires internet)
-   - *Local-first with sync*: keep Dexie as the local cache, sync to Supabase in the background (works offline, more complex)
-   - **Recommended:** local-first with sync — preserves the offline-first principle of the app
-4. **Migration** — on first login, offer to upload existing local data to the new account
-5. **Conflict resolution** — use `updatedAt` timestamps (already on songs) to pick the most recent version on conflict
-
-### Files that would change
-- `src/db/db.js` — add sync layer or replace with Supabase client
-- `src/store/useAppStore.js` — add auth state (currentUser, isLoggedIn)
-- `src/App.jsx` — add login gate / auth flow
-- `src/components/Settings.jsx` — add account management section
-- New: `src/lib/supabase.js` — Supabase client init
-- New: `src/components/AuthModal.jsx` — login/signup UI
+Involved: `src/lib/neon.js` (client), `src/hooks/useAuth.js` (OTP), `src/components/AuthModal.jsx`
+(code entry + sync panel), `src/hooks/useSyncEngine.js`, `neon-schema.sql`, `neon.ts`.
 
 ---
 
