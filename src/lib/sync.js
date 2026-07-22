@@ -180,11 +180,21 @@ async function push(userId, lastPushedAt) {
 async function pull(userId, lastSyncedAt) {
   let maxServerTs = lastSyncedAt
   for (const table of TABLE_ORDER) {
+    // If a table is locally empty, ignore the watermark and pull it from
+    // scratch. The watermark means "the newest row I already hold" — but a
+    // local store can be wiped while its localStorage watermark survives
+    // (the user clears IndexedDB, or, the real risk here, iOS Safari evicts
+    // a PWA's IndexedDB after ~7 days idle but keeps localStorage). The
+    // watermark would then say "already caught up" over an empty library and
+    // pull nothing. An empty table always warrants a full pull — which is
+    // also exactly what a brand-new device does, so this adds no special
+    // case, just extends the same rule to a store that was emptied.
+    const since = (await db[table].count()) === 0 ? 0 : lastSyncedAt
     const { data, error } = await neon
       .from(REMOTE_TABLE[table])
       .select('*')
       .eq('user_id', userId)
-      .gt('updated_at', lastSyncedAt)
+      .gt('updated_at', since)
     if (error) throw new Error(`Pull ${table}: ${error.message}`)
     if (!data?.length) continue
 

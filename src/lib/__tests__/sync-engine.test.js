@@ -11,7 +11,7 @@ import { runSync, ensureUserScope, getLastPushedAt, getLastSyncedAt } from '../s
 
 const userId = '00000000-0000-0000-0000-000000000000'
 
-const stubRemote = ({ pullData = {}, captureUpsert = null } = {}) => {
+const stubRemote = ({ pullData = {}, captureUpsert = null, captureGt = null } = {}) => {
   from.mockImplementation((tableName) => ({
     upsert: vi.fn((rows) => {
       if (captureUpsert) captureUpsert.push({ tableName, rows })
@@ -24,9 +24,10 @@ const stubRemote = ({ pullData = {}, captureUpsert = null } = {}) => {
     }),
     select: vi.fn(() => ({
       eq: vi.fn(() => ({
-        gt: vi.fn(() => Promise.resolve({
-          data: pullData[tableName] ?? [], error: null,
-        })),
+        gt: vi.fn((_col, threshold) => {
+          if (captureGt) captureGt[tableName] = threshold
+          return Promise.resolve({ data: pullData[tableName] ?? [], error: null })
+        }),
       })),
     })),
   }))
@@ -149,5 +150,55 @@ describe('ensureUserScope', () => {
     // Local-first: work done before signing in belongs to the account that
     // then claims it, not to the bin.
     expect(await db.artists.get(id)).toBeTruthy()
+  })
+})
+
+describe('pull recovers a wiped local store', () => {
+  beforeEach(async () => {
+    for (const k of Object.keys(localStorage)) localStorage.removeItem(k)
+    await Promise.all(
+      ['artists','songs','sets','setEntries','shows','setlists','setlistSets']
+        .map((t) => db[t].clear())
+    )
+    from.mockReset()
+  })
+
+  it('ignores the watermark and pulls from 0 when a table is locally empty', async () => {
+    // The bug: IndexedDB wiped (empty tables) but the localStorage watermark
+    // survived, so an incremental pull fetched nothing over an empty library.
+    const userId = '00000000-0000-0000-0000-000000000000'
+    localStorage.setItem(`settempo_lastSyncedAt_${userId}`, '9999')
+    localStorage.setItem(`settempo_lastPushedAt_${userId}`, '9999')
+    localStorage.setItem('settempo_lastUserId', userId)
+
+    const gt = {}
+    stubRemote({
+      captureGt: gt,
+      pullData: {
+        artists: [{ id: 'a1', name: 'Recovered', user_id: userId,
+          created_at: 100, updated_at: 100, deleted_at: null }],
+      },
+    })
+
+    await runSync(userId)
+
+    // Empty local artists → query from 0 despite the 9999 watermark.
+    expect(gt.artists).toBe(0)
+    // And the row actually comes back.
+    expect(await db.artists.get('a1')).toBeTruthy()
+  })
+
+  it('uses the watermark normally when the table already holds rows', async () => {
+    const userId = '00000000-0000-0000-0000-000000000000'
+    await addRow('artists', { name: 'Local' })
+    localStorage.setItem(`settempo_lastSyncedAt_${userId}`, '9999')
+    localStorage.setItem('settempo_lastUserId', userId)
+
+    const gt = {}
+    stubRemote({ captureGt: gt })
+    await runSync(userId)
+
+    // Non-empty artists → incremental from the saved watermark.
+    expect(gt.artists).toBe(9999)
   })
 })
