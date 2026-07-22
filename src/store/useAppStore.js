@@ -40,6 +40,19 @@ export const useAppStore = create((set) => ({
   dismissToast: (id) =>
     set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
 
+  // Log without raising a toast. For diagnostics the user did not ask for
+  // and should not be interrupted by — a muted metronome is expected
+  // behaviour, not a fault, but it is worth being able to read back when
+  // someone reports "no sound".
+  logQuietly: (text) =>
+    set((state) => ({
+      logSeq: state.logSeq + 1,
+      systemLog: [
+        { id: state.logSeq, level: 'info', text, at: Date.now() },
+        ...state.systemLog,
+      ].slice(0, LOG_LIMIT),
+    })),
+
   // Navigation
   currentArtistId: null,
   setCurrentArtistId: (id) => set({ currentArtistId: id }),

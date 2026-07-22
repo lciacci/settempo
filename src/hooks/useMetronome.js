@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react'
 import { useAppStore } from '../store/useAppStore'
+import { describeError, notify } from '../lib/notify'
 
 const semitoneRatio = (n) => Math.pow(2, n / 12)
 
@@ -47,6 +48,22 @@ function scheduleClick(ctx, time, isAccent, sound, pitch, volume) {
 const SCHEDULE_AHEAD = 0.1
 const LOOK_AHEAD = 25
 
+// ── Shared AudioContext ───────────────────────────────────────────────────
+// One context for the whole app, not one per hook instance. Metronome.jsx and
+// PerformanceMode.jsx both call useMetronome(), and a per-instance context
+// meant navigating between them allocated a second one. Browsers cap
+// concurrent AudioContexts (historically ~4 on iOS) and fail to start new
+// ones past the limit — silently, which is exactly the reported symptom.
+let sharedCtx = null
+
+function getContext() {
+  if (!sharedCtx || sharedCtx.state === 'closed') {
+    const Ctor = window.AudioContext || window.webkitAudioContext
+    sharedCtx = new Ctor()
+  }
+  return sharedCtx
+}
+
 export function useMetronome() {
   const { metronome, setMetronome } = useAppStore()
   const ctxRef = useRef(null)
@@ -63,12 +80,24 @@ export function useMetronome() {
   const gapPhaseIsClickRef = useRef(true)
   const gapPhaseBarRef = useRef(0)
 
-  const ensureContext = useCallback(() => {
-    if (!ctxRef.current || ctxRef.current.state === 'closed') {
-      ctxRef.current = new AudioContext()
+  // Awaited, unlike before. Browsers create an AudioContext suspended under
+  // autoplay policy, and `currentTime` does not advance while suspended — so
+  // scheduling against it before the resume settled produced beat times that
+  // were already stale by the time audio actually started. The scheduler then
+  // ran out of work and the metronome stayed silent.
+  const ensureContext = useCallback(async () => {
+    const ctx = getContext()
+    ctxRef.current = ctx
+    if (ctx.state === 'suspended') {
+      try {
+        await ctx.resume()
+      } catch {
+        // Resume rejects when not called from a user gesture. Fall through:
+        // the diagnostic below records the state so a silent metronome can be
+        // told apart from a muted one.
+      }
     }
-    if (ctxRef.current.state === 'suspended') ctxRef.current.resume()
-    return ctxRef.current
+    return ctx
   }, [])
 
   const stopInternal = useCallback(() => {
@@ -132,16 +161,41 @@ export function useMetronome() {
     timerRef.current = setTimeout(scheduler, LOOK_AHEAD)
   }, [setMetronome, stopInternal])
 
-  const start = useCallback((opts = {}) => {
-    const ctx = ensureContext()
+  const start = useCallback(async (opts = {}) => {
+    let ctx
+    try {
+      ctx = await ensureContext()
+    } catch (err) {
+      // Every caller fires this without awaiting, so a rejection here would
+      // be an unhandled promise — silence, which is the failure mode this
+      // whole layer exists to eliminate.
+      notify(`AUDIO UNAVAILABLE · ${describeError(err)}`, 'error')
+      return
+    }
     stopInternal()
     if (opts.starterBars) {
       starterBarsRef.current = opts.starterBars
       onStarterDoneRef.current = opts.onDone ?? null
     }
+
+    // Read currentTime only after the resume has settled.
     nextBeatTimeRef.current = ctx.currentTime + (ctx.state !== 'running' ? 0.3 : 0.05)
     setMetronome({ isPlaying: true, currentBeat: 0, currentBar: 0, starterDone: false, gapPhaseIsClick: true })
     timerRef.current = setTimeout(scheduler, LOOK_AHEAD)
+
+    // Diagnostic, written to the system log only — never a toast. Silence is
+    // often correct here (muted, zero volume, gap-click rest phase), so this
+    // records *why* it would be silent rather than reporting a fault. A
+    // healthy start logs nothing at all, so the log stays readable.
+    const m = useAppStore.getState().metronome
+    const reasons = []
+    if (ctx.state !== 'running') reasons.push(`CONTEXT=${ctx.state.toUpperCase()}`)
+    if (m.muted) reasons.push('MUTED')
+    if (!m.volume) reasons.push('VOLUME=0')
+    if (m.gapClickEnabled) reasons.push(`GAP=${m.gapPhaseIsClick ? 'CLICK' : 'SILENT'}`)
+    if (reasons.length) {
+      useAppStore.getState().logQuietly(`METRONOME START · ${reasons.join(' · ')}`)
+    }
   }, [ensureContext, stopInternal, scheduler, setMetronome])
 
   const stop = useCallback(() => {
@@ -163,7 +217,9 @@ export function useMetronome() {
   useEffect(() => {
     return () => {
       clearTimeout(timerRef.current)
-      ctxRef.current?.close()
+      // Deliberately does NOT close the context. It is shared app-wide now,
+      // so closing it here would kill audio for the other component still
+      // using it — unmounting Metronome would silence PerformanceMode.
     }
   }, [])
 
