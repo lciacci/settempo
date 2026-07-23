@@ -513,8 +513,8 @@ export default function Metronome({ songStarterConfig, onStarterDone }) {
             </div>
           </div>
 
-          {/* ── Faders (desktop only) ── */}
-          <div className="hidden md:grid grid-cols-2 gap-12 pt-10 border-t border-white/5">
+          {/* ── Faders — full-width stacked on mobile, side-by-side at md ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 pt-10 border-t border-white/5">
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="font-mono-digital text-[9px] font-black tracking-widest text-outline uppercase">MASTER_VOL</span>
@@ -539,8 +539,8 @@ export default function Metronome({ songStarterConfig, onStarterDone }) {
             </div>
           </div>
 
-          {/* ── Audio Status (desktop only) ── */}
-          <div className="hidden md:flex justify-center pt-2">
+          {/* ── Audio Status (mute) ── */}
+          <div className="flex justify-center pt-2">
             <button
               onClick={() => setMetronome({ muted: !muted })}
               className={`flex items-center gap-2 px-6 py-2 rounded-full border text-on-surface-variant hover:text-primary transition-colors shadow-inner ${
