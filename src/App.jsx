@@ -144,6 +144,15 @@ export default function App() {
               Perform
             </button>
           )}
+          <a
+            href={`${import.meta.env.BASE_URL}guide.html`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-2 text-outline hover:text-primary hover:bg-surface-container-high transition-all rounded flex items-center"
+            title="User guide"
+          >
+            <span className="material-symbols-outlined">help</span>
+          </a>
           <button
             onClick={() => setShowAuthModal(true)}
             className="p-2 hover:bg-surface-container-high transition-all rounded relative"
