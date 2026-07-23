@@ -462,8 +462,9 @@ export default function Metronome({ songStarterConfig, onStarterDone }) {
               </button>
             </div>
 
-            {/* Gap Click (desktop only) */}
-            <div className="hidden md:block bg-surface-container-high p-6 rounded-lg rack-module space-y-4 relative">
+            {/* Gap Click — shown on mobile too; drummers practise gap click on
+                their phones, and the controls were previously desktop-only. */}
+            <div className="block bg-surface-container-high p-6 rounded-lg rack-module space-y-4 relative">
               <ScrewHead className="absolute bottom-2 left-2 scale-50 opacity-30" />
               <ScrewHead className="absolute bottom-2 right-2 scale-50 opacity-30" />
 
