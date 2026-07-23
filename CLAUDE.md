@@ -170,13 +170,11 @@ Postgres/Supabase schema, each a silent failure if missed:
 - [x] Vitest suites for Dexie helpers/recovery, sync push/pull/scope, backup, notify, mappers
 
 ## Roadmap / Next
-- **Deploy the Neon build to production.** The migration is complete and verified on localhost,
-  but `houseofyeti.com/settempo` still serves the old Supabase build. Deploy needs: `VITE_NEON_*`
-  present at build time, rebuild + upload `dist/`, and the `sw.js` no-cache header (see Deploy)
-  or returning users keep the old app. Data API is still **Beta** (see ADR-0002).
-- **Verify a sender domain in Resend (DKIM/SPF) before real users.** The sandbox sender only
-  delivers OTP codes to the Resend account's own address; real users at arbitrary emails need a
-  verified domain.
+- **Neon migration is live** (deployed 2026-07-23, verified in production: fresh-email signup,
+  OTP via Resend from `auth@houseofyeti.com`, sync both directions). Nothing outstanding to ship.
+- **Data API is still Beta** (see ADR-0002) — glance periodically as real setlists accumulate.
+- **Reach out to the two prior Supabase users about the reset** — their old cloud data does not
+  carry to Neon; only what's in their local IndexedDB re-syncs up. Owner handles individually.
 - Audio: shared AudioContext + awaited resume shipped 2026-07-22, plus a system-log diagnostic
   on start. Not confirmed as the reported bug — not reproducible on available hardware. The
   next user report should carry a `METRONOME START · …` log line naming the cause.
