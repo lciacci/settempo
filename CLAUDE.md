@@ -187,6 +187,17 @@ Postgres/Supabase schema, each a silent failure if missed:
     toggles, bpm, sound, pitch and volume all reset on page reload. They survive navigation
     because the store is in memory, which is why it reads as working. Device-local
     (localStorage), not synced.
+- **Someday / exploratory (not scoped):**
+  - *MIDI connectivity.* Drive MIDI (SetTempo as master: 24-PPQN clock + Start/Stop, optional
+    note-per-click) and/or slave to external clock. Decisive constraint: **Web MIDI
+    (`navigator.requestMIDIAccess`) is Chrome/Edge/Chrome-Android only — no Safari/iOS**, so in
+    the browser this is desktop/Android-only; iOS needs a native path. Fits the existing
+    lookahead scheduler, but the real work is reconciling the two clock domains
+    (`performance.now()` for MIDI send vs. `AudioContext.currentTime` for audio). Rough order,
+    cheapest first: (1) MIDI-*in* for transport control — a foot pedal starting/stopping or
+    advancing songs in Performance Mode, no clock math, high value; (2) drive clock + Start/Stop;
+    (3) note output; (4) slave to external clock — hardest, needs jitter smoothing. Decide the
+    iOS story before building, or half the users can't reach it.
 
 
 ---
