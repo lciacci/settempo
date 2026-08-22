@@ -174,17 +174,52 @@ def _matches(target: str, index: dict[str, list[dict]]) -> list[dict]:
     script under it, which is exactly the generalisation that was missed. It is also why the
     count of affected keys is 46 and not 14: measuring direct attachment only, and ignoring
     what prefix matching pulls in, understates the truncation ~3× (2026-08-17).
+
+    ── SORTED BY SPECIFICITY, THEN NEWEST ADR FIRST (2026-08-22) ──────────────────────────
+
+    This used to sort ADR-filename ASCENDING, so `MAX_DOCS` cut **the newest records** —
+    `render_truncation` names two casualties, ADR-0022 invisible on `scripts/doccheck.py` and
+    ADR-0015 invisible on `bin/tessera-watch`. Recent decisions are exactly the ones a model
+    has not internalised, which is what this hook exists for; cutting them inverted its purpose.
+
+    **The recorded blocker was solving a harder problem than the harm required.** That
+    docstring deferred a re-sort because "specificity ... `lookup()` does not compute" — true,
+    but the harm is *cutting the newest*, and the sort key was already here. Measured over 400
+    commits of real edits: 192 files carry a surface, 60 truncate, and **15 hid one of the four
+    newest ADRs**. Newest-first alone scores 0; specificity-then-newest scores 2. The worse
+    number was chosen deliberately: "does it hide a NEW ADR" is near-circular as a test of a
+    sort that ranks by newness, while specificity is a real relevance claim — a record naming
+    this exact file governs it more directly than one naming its parent directory — and it
+    degrades gracefully when the newest record is also the least specific.
+
+    So `path_len` is the length of the LONGEST index key that matched a given record. Longest
+    wins because an exact-file match is stronger evidence than a directory prefix, and taking
+    the max (not the first) matters: a record reachable by both `scripts/` and
+    `scripts/doccheck.py` should rank on the latter.
     """
-    hits, seen = [], set()
+    best: dict = {}
     for path, entries in index.items():
         if target == path or target.startswith(path.rstrip("/") + "/") or path.startswith(target + "/"):
             for e in entries:
                 key = (e["doc"], e["title"])
-                if key not in seen:
-                    seen.add(key)
-                    hits.append(e)
-    hits.sort(key=lambda e: (e["kind"] != "adr", e["sort"]), reverse=False)
-    return hits
+                length = len(path.rstrip("/"))
+                if key not in best or length > best[key][0]:
+                    best[key] = (length, e)
+    hits = sorted(best.values(), key=lambda r: _relevance(r[0], r[1]))
+    return [e for _, e in hits]
+
+
+def _relevance(path_len: int, entry: dict) -> tuple:
+    """Sort key: most specific first, then ADRs before observatory, then NEWEST ADR first.
+
+    The ADR number is parsed rather than the filename compared, because descending order on a
+    string cannot be expressed in a tuple alongside ascending fields. A non-numeric `sort`
+    (observatory entries carry `"z"`) ranks last within its tier rather than raising.
+    """
+    if entry["kind"] == "adr":
+        head = entry["sort"][:4]
+        return (-path_len, 0, -int(head) if head.isdigit() else 0)
+    return (-path_len, 1, 0)
 
 
 def lookup(target: str, index: dict[str, list[dict]]) -> list[dict]:
@@ -208,20 +243,31 @@ def render_truncation(cut: list[dict]) -> list[str]:
     """Name what MAX_DOCS dropped. Additive-only, deliberately.
 
     Until 2026-08-17 the render ended at `Read before editing:` and said nothing about the
-    records it had discarded — on 46 of 146 index keys it cuts something, and what it cuts is
-    the NEWEST, because the sort is ADR-filename ascending. ADR-0022 ("a crashed doccheck check
+    records it had discarded — on 46 of 146 index keys it cuts something, and until 2026-08-22
+    what it cut was the NEWEST, because the sort was ADR-filename ascending. ADR-0022 ("a crashed doccheck check
     blocks the commit") was invisible on `scripts/doccheck.py`; ADR-0015, which created the P3
     predicate, was invisible on `bin/tessera-watch`. A true report, silently narrowed, with the
     narrowing absent from the output — standing pattern #12, inside the hook built to defeat
     silent failure.
 
-    WHY A NOTICE AND NOT A BIGGER CAP OR A DIFFERENT SORT. Raising MAX_DOCS trades a silent drop
-    for prefix dilution, which is unmeasured (ADR-0021). Re-sorting needs a notion of specificity
-    that `lookup()` does not compute — it matches by prefix, so a record naming `scripts/` and one
-    naming the exact file are indistinguishable at sort time. Both are real changes to what the
-    hook SHOWS, and a change made to stop this hook firing wrongly already once stopped it firing
-    on something real (the 2026-08-15 PATH_ALLOWLIST defect). Adding a line cannot suppress a live
-    record, so it is the half that carries no such risk.
+    WHY A NOTICE AND NOT A BIGGER CAP. Raising MAX_DOCS trades a silent drop for prefix
+    dilution, which is unmeasured (ADR-0021). A change to what the hook SHOWS carries real risk —
+    one made to stop this hook firing wrongly already once stopped it firing on something real
+    (the 2026-08-15 PATH_ALLOWLIST defect) — whereas adding a line cannot suppress a live record.
+
+    **THE "DIFFERENT SORT" HALF OF THIS PARAGRAPH WAS RETIRED 2026-08-22, and it had been
+    deferring the wrong problem.** It said a re-sort "needs a notion of specificity that
+    `lookup()` does not compute". True, and beside the point: the harm named above is that the
+    cut falls on the NEWEST, and the sort key for that was already present. `_matches` now
+    ranks by specificity (computed — see `_relevance`) and then newest-ADR-first. Measured over
+    400 commits of real edits: 15 files hid one of the four newest ADRs, now **0 among files
+    that still exist** (the 2 remaining are `scripts/spend/*`, which ADR-0029 deleted).
+
+    **ADR-0022 IS STILL CUT ON `scripts/doccheck.py`, AND THAT IS NOT THE SAME DEFECT.** All
+    seven ADRs there name the exact file, so specificity is a no-op tiebreaker and the cap
+    decides: it is now 4th-newest of 7 rather than a casualty of oldest-first. A cap that drops
+    something is working as designed; a sort that systematically drops the newest was not.
+    Only raising MAX_DOCS reaches this, and that trade is still unmeasured.
 
     ADR ids are listed in full and the rest are counted, so this line never truncates in silence
     the way the thing it reports on did.
@@ -233,7 +279,8 @@ def render_truncation(cut: list[dict]) -> list[str]:
     parts = ", ".join(adrs) if adrs else ""
     if others:
         parts += f"{' + ' if parts else ''}{others} observatory entr{'y' if others == 1 else 'ies'}"
-    return [f"  ⚠ {len(cut)} more record(s) NOT shown (MAX_DOCS={MAX_DOCS}, oldest-ADR-first): {parts}"]
+    return [f"  ⚠ {len(cut)} more record(s) NOT shown (MAX_DOCS={MAX_DOCS}, "
+            f"least-specific-and-oldest first): {parts}"]
 
 
 def render(target: str, hits: list[dict], amendments: dict[str, list[str]] | None = None,
